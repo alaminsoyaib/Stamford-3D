@@ -1,0 +1,85 @@
+{
+  "campus": "Stamford University Bangladesh",
+  "coordinateSystem": {
+    "units": "metres",
+    "axes": "+X east on the schematic, +Z towards the entry street, +Y up",
+    "groundY": 0,
+    "eyeHeight": 1.7,
+    "basis": "Estimated from the numbered CG_Sessional photo walkthrough. Orientation and distances are schematic."
+  },
+  "palette": {
+    "campusBlue": "#18365e",
+    "gateBlue": "#214975",
+    "brick": "#a35a49",
+    "lattice": "#9a5948",
+    "pinkPlaster": "#d78883",
+    "officialPlaster": "#d47c73",
+    "concrete": "#e0d3bc",
+    "libraryPlaster": "#e5dcc7",
+    "civilPlaster": "#d6cfc0",
+    "canteenRed": "#ab493d",
+    "gardenGreen": "#607d3d",
+    "fieldGreen": "#6b843e",
+    "poolBlue": "#4ca8b2"
+  },
+  "boundary": { "minX": -48, "maxX": 50, "minZ": -86, "maxZ": 32, "streetZ": 45 },
+  "gate": { "x": -3, "z": 32, "opening": 10.6, "pillar": 1.2, "height": 4.9 },
+  "garden": { "x": 7, "z": 17, "radiusX": 10.3, "radiusZ": 7.2 },
+  "ground": { "x": 0, "z": -35.2, "width": 30, "depth": 30.4 },
+  "pool": {
+    "x": 10.5, "z": -69.5, "width": 12.4, "depth": 21,
+    "waterY": -0.18, "bottomY": -2.85,
+    "ring": [10.5, -2.58, -65.5],
+    "triggerRadius": 2.2
+  },
+  "buildings": {
+    "guard": { "label": "Guard Room", "x": -13.3, "z": 27.2, "width": 4.6, "depth": 4.5, "yaw": 90, "floors": 1 },
+    "guardian": { "label": "Guardian Room", "x": -13.3, "z": 22.25, "width": 4.6, "depth": 4.5, "yaw": 90, "floors": 1 },
+    "cse": { "label": "Main CSE Building", "x": -20.1, "z": 0.5, "width": 22, "depth": 17, "yaw": 0, "floors": 5 },
+    "official": { "label": "Official Building", "x": 9, "z": -8, "width": 24, "depth": 12, "yaw": 0, "floors": 2 },
+    "garage": { "label": "Campus Parking", "x": -39.5, "z": -7, "width": 16, "depth": 7, "yaw": 90, "floors": 1 },
+    "lab": { "label": "High Voltage Laboratory", "x": 44, "z": 12.4, "width": 6.5, "depth": 6, "yaw": -90, "floors": 1 },
+    "washroom": { "label": "Male Washroom", "x": 44, "z": 6.2, "width": 5.5, "depth": 6, "yaw": -90, "floors": 1 },
+    "cseLibrary": { "label": "CSE Library", "x": 44, "z": -3, "width": 11.8, "depth": 6, "yaw": -90, "floors": 1 },
+    "law": { "label": "Law Building", "x": 44, "z": -18.8, "width": 8.5, "depth": 6, "yaw": -90, "floors": 2 },
+    "pharmacyLibrary": { "label": "Pharmacy Library", "x": 39.8, "z": -31, "width": 9.2, "depth": 6.4, "yaw": -90, "floors": 1 },
+    "academic": { "label": "Academic Building", "x": 23, "z": -27.65, "width": 27.3, "depth": 11, "yaw": -90, "floors": 3 },
+    "civil": { "label": "Civil Building", "x": -28, "z": -42.4, "width": 23, "depth": 14.2, "yaw": 90, "floors": 5 },
+    "canteen": { "label": "Stamford Canteen", "x": -9.8, "z": -56.3, "width": 14, "depth": 6.3, "yaw": 0, "floors": 1 },
+    "poolHouse": { "label": "Pool House", "x": 22.1, "z": -74, "width": 8.3, "depth": 4.8, "yaw": -90, "floors": 1 }
+  },
+  "walkways": [
+    { "x": -4.1, "z": -12.4, "width": 8.3, "depth": 87 },
+    { "x": -19.6, "z": 13.6, "width": 26, "depth": 5.2 },
+    { "x": -34.6, "z": -10, "width": 5.2, "depth": 43 },
+    { "x": -21.5, "z": -26.3, "width": 28, "depth": 5 },
+    { "x": 16.1, "z": 2.45, "width": 42, "depth": 7.5 },
+    { "x": 23.5, "z": 21.5, "width": 17, "depth": 8.7 },
+    { "x": 34.2, "z": -11.5, "width": 7.9, "depth": 63 },
+    { "x": 40.2, "z": -12.9, "width": 10.3, "depth": 4 },
+    { "x": 19.6, "z": -45.4, "width": 37.2, "depth": 5.2 },
+    { "x": 16.1, "z": -29.6, "width": 3.5, "depth": 30.1 },
+    { "x": -0.7, "z": -53, "width": 38, "depth": 4.9 },
+    { "x": 10.5, "z": -54.75, "width": 5.7, "depth": 8.5 }
+  ],
+  "stops": [
+    { "key": "1", "name": "Gate & garden", "position": [-3, 1.7, 42.1], "lookAt": [-3, 2.7, 18] },
+    { "key": "2", "name": "CSE & libraries", "position": [22.4, 1.7, 25], "lookAt": [8.3, 3.5, 0.3] },
+    { "key": "3", "name": "Central ground", "position": [-4.7, 1.7, -20.5], "lookAt": [7, 2.7, -44] },
+    { "key": "4", "name": "Swimming pool", "position": [10.5, 1.7, -56.3], "lookAt": [10.5, -0.9, -67.6] }
+  ],
+  "areas": [
+    { "code": "D", "name": "Swimming Pool", "stop": "4", "minX": -3, "maxX": 30, "minZ": -86, "maxZ": -55.9 },
+    { "code": "C", "name": "Libraries & Law Corridor", "stop": "2", "minX": 29, "maxX": 50, "minZ": -49, "maxZ": 9.25 },
+    { "code": "D", "name": "Central Ground", "stop": "3", "minX": -48, "maxX": 50, "minZ": -86, "maxZ": -19.3 },
+    { "code": "A", "name": "Main Gate & Front Garden", "stop": "1", "minX": -48, "maxX": 20.7, "minZ": 8.8, "maxZ": 45 },
+    { "code": "B", "name": "CSE & Admission Wing", "stop": "2", "minX": -48, "maxX": 50, "minZ": -19.3, "maxZ": 45 }
+  ],
+  "photoNotes": [
+    { "frames": "1–9, 17, 57–59", "details": "Brick piers and blue entrance signage, white guard and guardian rooms with blue eaves, curved black-and-white garden curb, palms and flower beds." },
+    { "frames": "7, 10–20, 42–43, 53–56", "details": "Cream grid over dark red CSE lattice panels, blue roof fascia, salmon official wing with the Admission Office and first Academic gate, white and blue bus near the garden fork." },
+    { "frames": "19–32", "details": "Low off-white service row, washroom, mural panels, Bag Counter beside the CSE Library door, right-hand Law passage, Pharmacy Library on the way to the ground." },
+    { "frames": "32–52, 60–68", "details": "Pink Academic facade along the ground with Gate 2, Medical Center and Student Welfare in sequence, white Civil block, red cafe, banyan and red-roofed shelter. The central lawn incorporates a marked court." },
+    { "frames": "67–73", "details": "Pool beyond the playing ground, narrow deck, palms, and a blue shed. The submerged ring is a fictional addition." }
+  ]
+}

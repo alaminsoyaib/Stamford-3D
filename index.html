@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#11231e">
+  <meta name="description" content="Explore the Stamford University Bangladesh campus and the portal hidden beneath its swimming pool.">
+  <title>Stamford Campus Atlas</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2312231d'/%3E%3Cpath d='M6 13 16 7l10 6H6Zm3 3v9m7-9v9m7-9v9M6 25h20' fill='none' stroke='%23d6ef9e' stroke-width='1.5'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./styles.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body class="campus" data-active="false" data-ready="false">
+  <canvas id="world" aria-label="Interactive 3D campus" tabindex="-1"></canvas>
+  <div class="vignette" aria-hidden="true"></div>
+  <header class="masthead">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 42 42" aria-hidden="true">
+        <rect x="1" y="1" width="40" height="40" rx="11" fill="none" stroke="currentColor" stroke-opacity=".4"/>
+        <path d="M10 18 21 12l11 6H10Zm3 3v10m5-10v10m6-10v10m5-10v10M10 31h22" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <div><strong>STAMFORD</strong><span>UNIVERSITY BANGLADESH</span></div>
+    </div>
+    <div class="atmosphere" role="group" aria-label="Campus environment">
+      <button type="button" data-action="KeyN" aria-pressed="false" aria-label="Toggle day and night" disabled>
+        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="3.3"/><path d="M10 1.8v2.1m0 12.2v2.1M1.8 10h2.1m12.2 0h2.1M4.2 4.2l1.5 1.5m8.6 8.6 1.5 1.5m0-11.6-1.5 1.5m-8.6 8.6-1.5 1.5"/></svg>
+        <span id="time-state">Daylight</span><kbd>N</kbd>
+      </button>
+      <button type="button" data-action="KeyR" aria-pressed="false" aria-label="Toggle rain" disabled>
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5.2 12.2a3 3 0 0 1-.2-6 4.5 4.5 0 0 1 8.4.5 2.8 2.8 0 1 1 .7 5.5H5.2ZM7.1 14.6l-1 2m4.4-2-1 2m4.4-2-1 2"/></svg>
+        <span id="weather-state">Clear</span><kbd>R</kbd>
+      </button>
+      <button type="button" data-action="KeyV" aria-label="Cycle seasons" disabled>
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5.3 13.9C1.4 7.6 8.2 4.1 15.8 3.3c.6 7.8-3.9 14.8-10.5 10.6ZM3.5 16.5l8.1-8.3"/></svg>
+        <span id="season-state">Summer</span><kbd>V</kbd>
+      </button>
+    </div>
+  </header>
+
+  <main class="hud">
+    <div class="location">
+      <span id="zone-code" class="eyebrow"><i class="signal"></i><span>ZONE A</span></span>
+      <strong id="zone-name">Main Gate &amp; Front Garden</strong>
+    </div>
+    <div class="reticle" aria-hidden="true"></div>
+
+    <section class="briefing" aria-labelledby="scene-title">
+      <p class="eyebrow"><span class="index-tag">01</span> <span>INTERACTIVE CAMPUS ATLAS</span></p>
+      <h1 id="scene-title">The Stamford<br><em>campus.</em></h1>
+      <p class="intro-copy">Walk from the blue gates of Stamford University Bangladesh to the portal beneath its swimming pool.</p>
+      <button class="primary" id="start" type="button" disabled><span>Enter campus</span><span aria-hidden="true">↗</span></button>
+      <p class="load-state" id="load-state" role="status">Building the campus scene…</p>
+      <noscript><p class="load-state">Enable JavaScript to explore the campus.</p></noscript>
+    </section>
+
+    <aside class="instrument campus-instrument" aria-label="Campus map and coordinates">
+      <div class="instrument-top"><span><i class="signal"></i> CAMPUS PLAN</span><span>↑ N</span></div>
+      <svg id="minimap" class="minimap" role="img" aria-label="Campus map with your position and four stops"></svg>
+      <div class="telemetry">
+        <span><b>X</b> <output id="coord-x">—</output></span>
+        <span><b>Y</b> <output id="coord-y">—</output></span>
+        <span><b>Z</b> <output id="coord-z">—</output></span>
+      </div>
+      <div class="instrument-bottom"><span>DHAKA, BANGLADESH</span><span id="bearing">N · 000°</span></div>
+    </aside>
+
+    <div class="prompt" id="proximity" hidden>
+      <span><i class="signal"></i> <span id="proximity-text"></span></span>
+      <button type="button" data-action="KeyP" disabled><kbd>P</kbd> Dive</button>
+    </div>
+    <div class="bottom-hud">
+      <nav class="checkpoints" aria-label="Teleport to a campus checkpoint">
+        <button type="button" data-action="Digit1" aria-current="location" disabled><kbd>1</kbd><span>Gate &amp; garden</span></button>
+        <button type="button" data-action="Digit2" disabled><kbd>2</kbd><span>CSE &amp; libraries</span></button>
+        <button type="button" data-action="Digit3" disabled><kbd>3</kbd><span>Central ground</span></button>
+        <button type="button" data-action="Digit4" disabled><kbd>4</kbd><span>Swimming pool</span></button>
+      </nav>
+      <div class="legend" aria-label="Keyboard shortcuts">
+        <span><kbd>WASD</kbd> / <kbd>↑←↓→</kbd> Move</span><span><kbd>Mouse</kbd> Look</span>
+        <span><kbd>Esc</kbd> Pause</span><button type="button" data-action="KeyP" disabled><kbd>P</kbd> Dive to deep sea <span aria-hidden="true">↗</span></button>
+      </div>
+    </div>
+    <div class="touch-drive" role="group" aria-label="On-screen movement">
+      <button type="button" data-move="KeyW" aria-label="Walk forward">↑</button>
+      <button type="button" data-move="KeyA" aria-label="Walk left">←</button>
+      <button type="button" data-move="KeyS" aria-label="Walk back">↓</button>
+      <button type="button" data-move="KeyD" aria-label="Walk right">→</button>
+    </div>
+    <button type="button" id="pause" class="pause-button" aria-label="Pause exploration">Ⅱ</button>
+    <div class="notice" id="notice" role="status" hidden></div>
+  </main>
+
+  <div class="transition" aria-hidden="true"><span>02 / UNDERWATER PORTAL</span><strong>Crossing the portal</strong></div>
+  <script type="module">
+    import('./src/mainCampus.js').then(({ startCampus }) => startCampus()).catch((error) => {
+      console.error(error);
+      document.getElementById('load-state').textContent = error.message.startsWith('WebGL')
+        ? error.message : 'Campus could not load. Open this page from a local HTTP server and check the Three.js CDN connection.';
+    });
+  </script>
+</body>
+</html>

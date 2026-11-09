@@ -1,0 +1,32 @@
+# Local dependencies and Python tooling
+node_modules/
+.venv/
+__pycache__/
+
+# Generated output and browser QA
+/dist/
+/build/
+/coverage/
+/playwright-report/
+/test-results/
+/qa-artifacts/
+*.log
+
+# Optional local copy of the reference walkthrough
+/reference-photos/
+
+# Local environment overrides
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Editor and operating system files
+/.idea/
+/.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+Desktop.ini
