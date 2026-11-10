@@ -75,7 +75,11 @@ export function buildCSEAdmission(scene, kit) {
       box(garage.root, m.black, [4.56, 0.038, 0.048], [px, 0.17 + bar * 0.153, garage.face + 0.128]);
     }
   }
-  const parking = groupAt(zone, 'Varsity bus parking bay', [21.6, 0, 8.9], -0.82);
+  const busSpec = map.buildings?.bus || { x: 21.6, z: 8.9, yaw: -47 };
+  const parking = groupAt(zone, 'Varsity bus parking bay', [busSpec.x, 0, busSpec.z], THREE.MathUtils.degToRad(busSpec.yaw));
+  parking.userData.landmarkId = 'bus';
+  parking.userData.isLandmark = true;
+  parking.userData.buildingSpec = busSpec;
   kit.bus(parking, 0, 0, 0);
   floor(parking, standard('#b9b69c'), 0, 0, 4.1, 9.3, 0.012);
   for (const px of [-1.87, 1.87]) floor(parking, m.white, px, 0, 0.1, 9.13, 0.016);

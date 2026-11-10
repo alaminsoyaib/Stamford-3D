@@ -59,31 +59,53 @@ export function groupAt(parent, name, position, yaw = 0) {
   return group;
 }
 
-// Batch repeated static parts within each zone while retaining the animated hierarchies.
+// Batch repeated static parts within each zone while retaining landmark and animated hierarchies.
 export function batchStaticMeshes(root) {
   root.updateWorldMatrix(true, true);
-  const byAppearance = new Map();
-  root.traverse((mesh) => {
-    if (!mesh.isMesh || mesh.isInstancedMesh || Array.isArray(mesh.material) || mesh.material.transparent) return;
-    const key = [mesh.geometry.id, mesh.material.id, mesh.castShadow, mesh.receiveShadow].join('/');
-    if (!byAppearance.has(key)) byAppearance.set(key, []);
-    byAppearance.get(key).push(mesh);
+  const landmarkRoots = [];
+  root.traverse((obj) => {
+    if (obj !== root && obj.userData?.isLandmark) landmarkRoots.push(obj);
   });
-  const rootInverse = root.matrixWorld.clone().invert();
-  const local = new THREE.Matrix4();
-  for (const meshes of byAppearance.values()) {
-    if (meshes.length < 3) continue;
-    const first = meshes[0];
-    const batch = new THREE.InstancedMesh(first.geometry, first.material, meshes.length);
-    batch.castShadow = first.castShadow;
-    batch.receiveShadow = first.receiveShadow;
-    for (const [index, mesh] of meshes.entries()) {
-      batch.setMatrixAt(index, local.multiplyMatrices(rootInverse, mesh.matrixWorld));
-      mesh.removeFromParent();
+
+  function batchTarget(target, predicate) {
+    target.updateWorldMatrix(true, true);
+    const byAppearance = new Map();
+    target.traverse((mesh) => {
+      if (!mesh.isMesh || mesh.isInstancedMesh || Array.isArray(mesh.material) || mesh.material.transparent) return;
+      if (predicate && !predicate(mesh)) return;
+      const key = [mesh.geometry.id, mesh.material.id, mesh.castShadow, mesh.receiveShadow].join('/');
+      if (!byAppearance.has(key)) byAppearance.set(key, []);
+      byAppearance.get(key).push(mesh);
+    });
+    const targetInverse = target.matrixWorld.clone().invert();
+    const local = new THREE.Matrix4();
+    for (const meshes of byAppearance.values()) {
+      if (meshes.length < 3) continue;
+      const first = meshes[0];
+      const batch = new THREE.InstancedMesh(first.geometry, first.material, meshes.length);
+      batch.castShadow = first.castShadow;
+      batch.receiveShadow = first.receiveShadow;
+      for (const [index, mesh] of meshes.entries()) {
+        batch.setMatrixAt(index, local.multiplyMatrices(targetInverse, mesh.matrixWorld));
+        mesh.removeFromParent();
+      }
+      batch.computeBoundingSphere();
+      target.add(batch);
     }
-    batch.computeBoundingSphere();
-    root.add(batch);
   }
+
+  for (const landmark of landmarkRoots) {
+    batchTarget(landmark);
+  }
+
+  batchTarget(root, (mesh) => {
+    let cur = mesh.parent;
+    while (cur && cur !== root) {
+      if (cur.userData?.isLandmark) return false;
+      cur = cur.parent;
+    }
+    return true;
+  });
 }
 
 let glowMap;

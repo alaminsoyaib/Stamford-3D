@@ -119,12 +119,42 @@ export function sign(parent, { title, subtitle = '', position, width, height, ya
   return mesh;
 }
 
+function isDescendantOf(parent, child) {
+  let cur = child;
+  while (cur) {
+    if (cur === parent) return true;
+    cur = cur.parent;
+  }
+  return false;
+}
+
 export function addLocalCollider(colliders, group, x, z, width, depth) {
   group.updateWorldMatrix(true, false);
   const lower = new THREE.Vector3(x - width / 2, 0, z - depth / 2);
   const upper = new THREE.Vector3(x + width / 2, 0, z + depth / 2);
   const bounds = new THREE.Box3(lower, upper).applyMatrix4(group.matrixWorld);
-  colliders.push({ minX: bounds.min.x, maxX: bounds.max.x, minZ: bounds.min.z, maxZ: bounds.max.z });
+  const record = {
+    minX: bounds.min.x, maxX: bounds.max.x, minZ: bounds.min.z, maxZ: bounds.max.z,
+    group, local: { x, z, width, depth }
+  };
+  colliders.push(record);
+  return record;
+}
+
+export function updateCollidersForGroup(colliders, group) {
+  group.updateWorldMatrix(true, true);
+  for (const c of colliders) {
+    if (c.group && c.local && (c.group === group || isDescendantOf(group, c.group))) {
+      c.group.updateWorldMatrix(true, false);
+      const lower = new THREE.Vector3(c.local.x - c.local.width / 2, 0, c.local.z - c.local.depth / 2);
+      const upper = new THREE.Vector3(c.local.x + c.local.width / 2, 0, c.local.z + c.local.depth / 2);
+      const bounds = new THREE.Box3(lower, upper).applyMatrix4(c.group.matrixWorld);
+      c.minX = bounds.min.x;
+      c.maxX = bounds.max.x;
+      c.minZ = bounds.min.z;
+      c.maxZ = bounds.max.z;
+    }
+  }
 }
 
 export function wayfinding(parent, materials, { x, z, title, subtitle, yaw = 0, width = 2.35 }) {
@@ -159,6 +189,7 @@ function makePalmFrond() {
 export function createCampusKit(map) {
   const p = map.palette;
   const colliders = [];
+  const landmarks = new Map();
   const foliage = ['#45663b', '#66834a', '#7d9654', '#547943'].map((color) =>
     standard(color, { side: THREE.DoubleSide }));
   const windowMaterials = [];
@@ -270,6 +301,10 @@ export function createCampusKit(map) {
     const { width, depth, x, z, yaw, floors } = spec;
     const { wall, trim, story, recess = 0, lattice = false, bands = false } = themes[style];
     const root = groupAt(parent, spec.label, [x, 0, z], radians(yaw));
+    root.userData.landmarkId = id;
+    root.userData.isLandmark = true;
+    root.userData.buildingSpec = spec;
+    landmarks.set(id, { id, root, spec, options });
     const height = story * floors;
     const facade = depth / 2;
     const face = facade - recess;
@@ -441,6 +476,12 @@ export function createCampusKit(map) {
 
   function bus(parent, x, z, yaw) {
     const root = groupAt(parent, 'Stamford varsity bus', [x, 0, z], yaw);
+    root.userData.landmarkId = 'bus';
+    root.userData.isLandmark = true;
+    if (map.buildings?.bus) {
+      root.userData.buildingSpec = map.buildings.bus;
+      landmarks.set('bus', { id: 'bus', root, spec: map.buildings.bus });
+    }
     const ivory = materials.white;
     const rubber = standard('#24292c', { roughness: 0.97 });
     const rim = standard('#a8b2b7', { metalness: 0.7, roughness: 0.36 });
@@ -475,5 +516,5 @@ export function createCampusKit(map) {
     addLocalCollider(colliders, root, 0, 0, 2.89, length + 0.15);
   }
 
-  return { map, materials, colliders, foliage, windowMaterials, building, windowAt, tree, shrub, flowerBed, planter, bench, bus };
+  return { map, materials, colliders, foliage, windowMaterials, building, windowAt, tree, shrub, flowerBed, planter, bench, bus, landmarks, updateCollidersForGroup };
 }

@@ -293,3 +293,148 @@ kbd {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: .01ms !important; }
 }
+
+/* Layout Editor Panel */
+.layout-editor {
+  position: absolute;
+  top: 92px;
+  right: calc(var(--gutter) + 205px);
+  width: 295px;
+  padding: 13px;
+  background: var(--glass);
+  border: 1px solid var(--accent);
+  backdrop-filter: blur(16px);
+  border-radius: 12px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.6);
+  z-index: 10;
+  pointer-events: auto;
+  font-size: 12px;
+}
+.editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.editor-close {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  border-radius: 5px;
+  padding: 2px 7px;
+  font-size: 11px;
+}
+.editor-close:hover {
+  color: var(--fg);
+  border-color: var(--accent);
+}
+.editor-help {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.4;
+}
+.editor-selection {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+.editor-landmark-title {
+  margin-bottom: 8px;
+}
+.editor-landmark-title strong {
+  display: block;
+  font-size: 13px;
+  color: var(--fg);
+}
+.editor-id {
+  font: 10px var(--mono);
+  color: var(--accent);
+}
+.editor-coords {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding: 6px 0;
+  border-block: 1px solid var(--line);
+  font: 11px/1.2 var(--mono);
+  margin-bottom: 8px;
+}
+.editor-coords span { white-space: nowrap; }
+.editor-coords b { color: var(--accent); margin-right: 2px; }
+.editor-coords output { font-variant-numeric: tabular-nums; }
+.editor-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.editor-numpad {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+.editor-mid-row {
+  display: flex;
+  gap: 16px;
+}
+.editor-numpad button, .editor-rot-controls button {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--line);
+  color: var(--fg);
+  border-radius: 5px;
+  padding: 4px 9px;
+  font-size: 11px;
+}
+.editor-numpad button:hover, .editor-rot-controls button:hover {
+  background: rgba(214, 239, 158, 0.2);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.editor-rot-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.editor-actions {
+  display: flex;
+  gap: 8px;
+}
+.editor-btn {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--line);
+  color: var(--fg);
+}
+.editor-btn.primary-btn {
+  background: var(--accent);
+  color: var(--dark);
+  border-color: transparent;
+}
+.editor-btn:hover {
+  filter: brightness(1.15);
+}
+.editor-feedback {
+  margin-top: 8px;
+  padding: 6px;
+  background: rgba(214, 239, 158, 0.15);
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  color: var(--accent);
+  font: 11px var(--mono);
+  text-align: center;
+}
+@media (max-width: 900px) {
+  .layout-editor {
+    right: var(--gutter);
+    top: 140px;
+    width: min(290px, calc(100% - 2 * var(--gutter)));
+  }
+}

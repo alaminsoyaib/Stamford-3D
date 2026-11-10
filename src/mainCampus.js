@@ -184,11 +184,213 @@ export async function startCampus() {
   addEventListener('pageshow', (event) => {
     if (event.persisted && camera.position.y < map.pool.waterY) teleport(map.stops[3]);
   });
+
+  // Layout Editor Mode (Task 2)
+  let isEditorActive = false;
+  let selectedLandmark = null;
+  let boxHelper = null;
+  const raycaster = new THREE.Raycaster();
+  const mouse = new THREE.Vector2();
+  const editorEl = document.getElementById('layout-editor');
+  const editorCloseBtn = document.getElementById('editor-close');
+  const editorNameEl = document.getElementById('editor-landmark-name');
+  const editorIdEl = document.getElementById('editor-landmark-id');
+  const editorCoordX = document.getElementById('editor-coord-x');
+  const editorCoordZ = document.getElementById('editor-coord-z');
+  const editorYaw = document.getElementById('editor-yaw');
+  const editorCopyBtn = document.getElementById('editor-copy-json');
+  const editorDownloadBtn = document.getElementById('editor-download-json');
+  const editorFeedback = document.getElementById('editor-feedback');
+
+  function updateEditorPanel() {
+    if (!editorEl) return;
+    if (!selectedLandmark) {
+      editorNameEl.textContent = 'No building selected';
+      editorIdEl.textContent = 'Click a building in 3D';
+      editorCoordX.value = '—';
+      editorCoordZ.value = '—';
+      editorYaw.value = '—';
+      return;
+    }
+    const { id, root, spec } = selectedLandmark;
+    editorNameEl.textContent = spec.label || id;
+    editorIdEl.textContent = id;
+    editorCoordX.value = root.position.x.toFixed(1);
+    editorCoordZ.value = root.position.z.toFixed(1);
+    const deg = (THREE.MathUtils.radToDeg(root.rotation.y) % 360 + 360) % 360;
+    editorYaw.value = `${deg.toFixed(0)}°`;
+  }
+
+  function deselectLandmark() {
+    if (boxHelper) {
+      scene.remove(boxHelper);
+      boxHelper.dispose();
+      boxHelper = null;
+    }
+    selectedLandmark = null;
+    updateEditorPanel();
+  }
+
+  function selectLandmark(id) {
+    const lm = kit.landmarks.get(id);
+    if (!lm) return;
+    selectedLandmark = lm;
+    if (boxHelper) {
+      scene.remove(boxHelper);
+      boxHelper.dispose();
+    }
+    boxHelper = new THREE.BoxHelper(lm.root, 0xd6ef9e);
+    boxHelper.material.depthTest = false;
+    boxHelper.material.transparent = true;
+    boxHelper.material.opacity = 0.95;
+    boxHelper.renderOrder = 999;
+    scene.add(boxHelper);
+    updateEditorPanel();
+  }
+
+  function moveSelected(dx, dz) {
+    if (!selectedLandmark) return;
+    const { root, spec } = selectedLandmark;
+    root.position.x += dx;
+    root.position.z += dz;
+    spec.x = Number(root.position.x.toFixed(2));
+    spec.z = Number(root.position.z.toFixed(2));
+    kit.updateCollidersForGroup(kit.colliders, root);
+    if (boxHelper) boxHelper.update();
+    updateEditorPanel();
+    updateHud();
+  }
+
+  function rotateSelected(dyaw) {
+    if (!selectedLandmark) return;
+    const { root, spec } = selectedLandmark;
+    root.rotation.y += dyaw;
+    spec.yaw = Number(THREE.MathUtils.radToDeg(root.rotation.y).toFixed(1));
+    kit.updateCollidersForGroup(kit.colliders, root);
+    if (boxHelper) boxHelper.update();
+    updateEditorPanel();
+    updateHud();
+  }
+
+  function toggleEditor() {
+    isEditorActive = !isEditorActive;
+    if (isEditorActive) {
+      if (runtime.controls.isLocked) runtime.controls.unlock();
+      if (editorEl) editorEl.hidden = false;
+      document.body.dataset.editor = 'true';
+      runtime.announce('Layout Editor active. Click any building to move or rotate.');
+      updateEditorPanel();
+    } else {
+      if (editorEl) editorEl.hidden = true;
+      document.body.dataset.editor = 'false';
+      deselectLandmark();
+    }
+  }
+
+  function exportUpdatedMapJson() {
+    for (const [id, lm] of kit.landmarks.entries()) {
+      if (map.buildings[id]) {
+        map.buildings[id].x = Number(lm.root.position.x.toFixed(2));
+        map.buildings[id].z = Number(lm.root.position.z.toFixed(2));
+        map.buildings[id].yaw = Number(THREE.MathUtils.radToDeg(lm.root.rotation.y).toFixed(1));
+      }
+    }
+    return JSON.stringify(map, null, 2);
+  }
+
+  function showFeedback(msg) {
+    if (!editorFeedback) return;
+    editorFeedback.textContent = msg;
+    editorFeedback.hidden = false;
+    setTimeout(() => { editorFeedback.hidden = true; }, 3500);
+  }
+
+  function downloadMapJson() {
+    const json = exportUpdatedMapJson();
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'CAMPUS_MAP.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    showFeedback('✓ Downloaded CAMPUS_MAP.json!');
+  }
+
+  if (editorEl) {
+    editorCloseBtn?.addEventListener('click', toggleEditor);
+    editorCopyBtn?.addEventListener('click', async () => {
+      const json = exportUpdatedMapJson();
+      try {
+        await navigator.clipboard.writeText(json);
+        showFeedback('✓ Copied updated CAMPUS_MAP.json!');
+      } catch {
+        downloadMapJson();
+      }
+    });
+    editorDownloadBtn?.addEventListener('click', downloadMapJson);
+
+    for (const btn of editorEl.querySelectorAll('[data-edit]')) {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!selectedLandmark) return;
+        const action = btn.dataset.edit;
+        const step = 1.0;
+        if (action === 'x-minus') moveSelected(-step, 0);
+        else if (action === 'x-plus') moveSelected(step, 0);
+        else if (action === 'z-minus') moveSelected(0, -step);
+        else if (action === 'z-plus') moveSelected(0, step);
+        else if (action === 'rot-ccw') rotateSelected(-Math.PI / 12);
+        else if (action === 'rot-cw') rotateSelected(Math.PI / 12);
+      });
+    }
+  }
+
+  const canvas = runtime.renderer.domElement;
+  canvas.addEventListener('pointerdown', (event) => {
+    if (!isEditorActive || event.button !== 0) return;
+    const rect = canvas.getBoundingClientRect();
+    mouse.set(
+      ((event.clientX - rect.left) / rect.width) * 2 - 1,
+      -((event.clientY - rect.top) / rect.height) * 2 + 1
+    );
+    raycaster.setFromCamera(mouse, camera);
+    const hits = raycaster.intersectObjects(scene.children, true);
+    for (const hit of hits) {
+      let cur = hit.object;
+      while (cur && cur !== scene) {
+        if (cur.userData?.landmarkId) {
+          selectLandmark(cur.userData.landmarkId);
+          return;
+        }
+        cur = cur.parent;
+      }
+    }
+  });
+
+  window.addEventListener('keydown', (event) => {
+    if (event.code === 'KeyE' && !event.ctrlKey && !event.altKey && !event.metaKey) {
+      toggleEditor();
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    if (isEditorActive && selectedLandmark) {
+      const step = event.shiftKey ? 5.0 : 1.0;
+      if (event.code === 'ArrowLeft') { moveSelected(-step, 0); event.preventDefault(); event.stopPropagation(); return; }
+      if (event.code === 'ArrowRight') { moveSelected(step, 0); event.preventDefault(); event.stopPropagation(); return; }
+      if (event.code === 'ArrowUp') { moveSelected(0, -step); event.preventDefault(); event.stopPropagation(); return; }
+      if (event.code === 'ArrowDown') { moveSelected(0, step); event.preventDefault(); event.stopPropagation(); return; }
+      if (event.code === 'KeyQ') { rotateSelected(-Math.PI / 12); event.preventDefault(); event.stopPropagation(); return; }
+      if (event.code === 'KeyT') { rotateSelected(Math.PI / 12); event.preventDefault(); event.stopPropagation(); return; }
+    }
+  }, { capture: true });
+
   const stopActions = Object.fromEntries(map.stops.map((stop) => [`Digit${stop.key}`, () => {
     document.body.dataset.briefing = 'compact';
     teleport(stop);
   }]));
-  runtime.ready({ ...weather.actions, ...stopActions, KeyP: dive });
+  runtime.ready({ ...weather.actions, ...stopActions, KeyP: dive, KeyE: toggleEditor });
 
   runtime.loop((dt, time) => {
     if (runtime.active && !runtime.leaving) {

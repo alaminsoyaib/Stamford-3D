@@ -84,7 +84,8 @@
       </nav>
       <div class="legend" aria-label="Keyboard shortcuts">
         <span><kbd>WASD</kbd> / <kbd>↑←↓→</kbd> Move</span><span><kbd>Mouse</kbd> Look</span>
-        <span><kbd>Esc</kbd> Pause</span><button type="button" data-action="KeyP" disabled><kbd>P</kbd> Dive to deep sea <span aria-hidden="true">↗</span></button>
+        <span><kbd>Esc</kbd> Pause</span><button type="button" data-action="KeyE"><kbd>E</kbd> Layout editor</button>
+        <button type="button" data-action="KeyP" disabled><kbd>P</kbd> Dive to deep sea <span aria-hidden="true">↗</span></button>
       </div>
     </div>
     <div class="touch-drive" role="group" aria-label="On-screen movement">
@@ -95,6 +96,44 @@
     </div>
     <button type="button" id="pause" class="pause-button" aria-label="Pause exploration">Ⅱ</button>
     <div class="notice" id="notice" role="status" hidden></div>
+
+    <div id="layout-editor" class="layout-editor" hidden aria-label="Campus Layout Editor">
+      <div class="editor-header">
+        <span class="eyebrow"><i class="signal"></i><span>LAYOUT EDITOR ACTIVE</span></span>
+        <button type="button" id="editor-close" class="editor-close" aria-label="Close Layout Editor"><kbd>E</kbd> ✕</button>
+      </div>
+      <p class="editor-help">Click any building to select. Arrow keys: move 1m (Shift: 5m). <kbd>Q</kbd> / <kbd>T</kbd>: rotate ±15°.</p>
+      <div id="editor-selection" class="editor-selection">
+        <div class="editor-landmark-title">
+          <strong id="editor-landmark-name">No building selected</strong>
+          <span id="editor-landmark-id" class="editor-id">Click a building in 3D</span>
+        </div>
+        <div class="editor-coords">
+          <span><b>X</b> <output id="editor-coord-x">—</output></span>
+          <span><b>Z</b> <output id="editor-coord-z">—</output></span>
+          <span><b>YAW</b> <output id="editor-yaw">—</output></span>
+        </div>
+        <div class="editor-controls">
+          <div class="editor-numpad" role="group" aria-label="Translate building">
+            <button type="button" data-edit="z-minus" title="Move North (-Z)">↑</button>
+            <div class="editor-mid-row">
+              <button type="button" data-edit="x-minus" title="Move West (-X)">←</button>
+              <button type="button" data-edit="x-plus" title="Move East (+X)">→</button>
+            </div>
+            <button type="button" data-edit="z-plus" title="Move South (+Z)">↓</button>
+          </div>
+          <div class="editor-rot-controls" role="group" aria-label="Rotate building">
+            <button type="button" data-edit="rot-ccw" title="Rotate Counter-Clockwise (-15°)"><kbd>Q</kbd> -15°</button>
+            <button type="button" data-edit="rot-cw" title="Rotate Clockwise (+15°)"><kbd>T</kbd> +15°</button>
+          </div>
+        </div>
+      </div>
+      <div class="editor-actions">
+        <button type="button" id="editor-copy-json" class="editor-btn primary-btn"><span>📋 Copy JSON</span></button>
+        <button type="button" id="editor-download-json" class="editor-btn"><span>💾 Download Map</span></button>
+      </div>
+      <div id="editor-feedback" class="editor-feedback" hidden></div>
+    </div>
   </main>
 
   <div class="transition" aria-hidden="true"><span>02 / UNDERWATER PORTAL</span><strong>Crossing the portal</strong></div>

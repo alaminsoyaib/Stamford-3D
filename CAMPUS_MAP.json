@@ -37,6 +37,7 @@
     "guardian": { "label": "Guardian Room", "x": -13.3, "z": 22.25, "width": 4.6, "depth": 4.5, "yaw": 90, "floors": 1 },
     "cse": { "label": "Main CSE Building", "x": -20.1, "z": 0.5, "width": 22, "depth": 17, "yaw": 0, "floors": 5 },
     "official": { "label": "Official Building", "x": 9, "z": -8, "width": 24, "depth": 12, "yaw": 0, "floors": 2 },
+    "bus": { "label": "Varsity Bus", "x": 21.6, "z": 8.9, "width": 2.89, "depth": 8.5, "yaw": -47, "floors": 1 },
     "garage": { "label": "Campus Parking", "x": -39.5, "z": -7, "width": 16, "depth": 7, "yaw": 90, "floors": 1 },
     "lab": { "label": "High Voltage Laboratory", "x": 44, "z": 12.4, "width": 6.5, "depth": 6, "yaw": -90, "floors": 1 },
     "washroom": { "label": "Male Washroom", "x": 44, "z": 6.2, "width": 5.5, "depth": 6, "yaw": -90, "floors": 1 },
