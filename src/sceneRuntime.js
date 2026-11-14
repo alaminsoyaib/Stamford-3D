@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+import { landExtent } from './campusBoundary.js';
 
 const moveCodes = new Set([
   'KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight',
@@ -107,21 +108,6 @@ export function createRuntime({ fov, far, shadows = false, shiftStrafe = false, 
     activate('drag');
   }
 
-  function startRoaming() {
-    if (leaving || lostContext || alternateCamera) return;
-    activate('drag');
-    if (!coarse.matches && canvas.requestPointerLock) {
-      try {
-        const promise = canvas.requestPointerLock?.();
-        if (promise && typeof promise.catch === 'function') {
-          promise.catch(() => activate('drag'));
-        }
-      } catch {
-        activate('drag');
-      }
-    }
-  }
-
   start.addEventListener('click', () => {
     if (!ready || leaving || lostContext || alternateCamera) return;
     awaitingLock = true;
@@ -178,7 +164,8 @@ export function createRuntime({ fov, far, shadows = false, shiftStrafe = false, 
   }
   for (const button of buttons) button.addEventListener('click', () => runAction(button.dataset.action));
   addEventListener('keydown', (event) => {
-    if (event.defaultPrevented || event.ctrlKey || event.altKey || event.metaKey || event.target.matches?.('input, select, textarea')) return;
+    if (event.defaultPrevented || event.ctrlKey || event.altKey || event.metaKey
+      || event.target.matches?.('input, select, textarea') || event.target.closest?.('dialog[open]')) return;
     const code = event.code.replace(/^Numpad([1-4])$/, 'Digit$1');
     if (active && code === 'Escape') {
       pause();
@@ -222,7 +209,7 @@ export function createRuntime({ fov, far, shadows = false, shiftStrafe = false, 
   });
 
   return {
-    camera, scene, renderer, controls, announce, startRoaming,
+    camera, scene, renderer, controls, announce,
     get active() { return active; },
     get leaving() { return leaving; },
     setView(view) {
@@ -249,9 +236,7 @@ export function createRuntime({ fov, far, shadows = false, shiftStrafe = false, 
         pendingAction = null;
         runAction(code);
       }
-      if (autoRoam && !leaving && !lostContext && !alternateCamera) {
-        startRoaming();
-      }
+      if (autoRoam && !leaving) activate('drag');
     },
     travel(navigate) {
       if (leaving) return;
@@ -301,9 +286,9 @@ export function setLocation(code, name) {
 
 export function makeMinimap(map) {
   const svg = document.getElementById('minimap');
-  const removed = new Set(map.removedObjects);
+  const removed = new Set([...(map.removedObjects ?? []), ...(map.deck ?? [])]);
   svg.replaceChildren();
-  const { minX, maxX, minZ, maxZ, streetZ } = map.boundary;
+  const { minX, maxX, minZ, maxZ, streetZ } = landExtent(map.boundary);
   svg.setAttribute('viewBox', `${minX - 7} ${minZ - 4} ${maxX - minX + 14} ${streetZ - minZ + 8}`);
   function shape(tag, cssClass, attributes, parent = svg) {
     const element = document.createElementNS(svgNS, tag);
@@ -320,7 +305,8 @@ export function makeMinimap(map) {
       transform: `rotate(${-yaw} ${x} ${z})`
     });
   }
-  shape('path', 'outline', {
+  if (map.boundary.points) shape('polygon', 'outline', { points: map.boundary.points.map((point) => point.join(',')).join(' ') });
+  else shape('path', 'outline', {
     d: `M${map.gate.x - 6},${maxZ} H${minX} V${minZ} H${maxX} V${maxZ} H${map.gate.x + 6}`
   });
   for (const [index, walkway] of map.walkways.entries()) {
@@ -337,8 +323,8 @@ export function makeMinimap(map) {
   for (const [id, building] of Object.entries(map.buildings)) {
     if (!removed.has(id)) rect('footprint', building);
   }
-  rect('water', map.pool);
-  const stops = map.stops.map(({ key, position: [x, , z] }) => {
+  if (!removed.has('pool')) rect('water', map.pool);
+  const stops = map.stops.filter(({ key }) => key !== '4' || !removed.has('pool')).map(({ key, position: [x, , z] }) => {
     const marker = shape('g', '', { transform: `translate(${x - 5} ${z})` });
     shape('circle', 'checkpoint-dot', { r: 3.45 }, marker);
     shape('text', 'checkpoint-text', { x: 0, y: 0 }, marker).textContent = key;

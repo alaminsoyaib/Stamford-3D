@@ -133,7 +133,6 @@ function createLamps(scene, kit) {
   const { materials } = kit;
   const lamps = groupAt(scene, 'Warm campus streetlamps', [0, 0, 0]);
   const bulb = standard('#f9e4bb', { emissive: '#ffc36e', emissiveIntensity: 0 });
-  const lights = [];
   for (const [x, z, yaw] of [
     [3.95, 30.2, Math.PI], [-7.5, 14.4, 0], [18.1, 4.7, 0],
     [37.9, -13.5, Math.PI], [33.8, -37.7, 0], [14.6, -34.7, Math.PI],
@@ -148,10 +147,9 @@ function createLamps(scene, kit) {
     const light = new THREE.PointLight('#ffc482', 0, 18, 2);
     light.position.set(0.73, 3.89, 0);
     root.add(light);
-    lights.push(light);
   }
   batchStaticMeshes(lamps);
-  return { bulb, lights };
+  return { bulb, group: lamps };
 }
 
 export function createWeather(runtime, kit) {
@@ -235,7 +233,9 @@ export function createWeather(runtime, kit) {
       sun.color.copy(warmSun).lerp(moon, night);
       hemisphere.intensity = THREE.MathUtils.lerp(1.62, 0.52, night);
       ambient.intensity = THREE.MathUtils.lerp(0.24, 0.14, night);
-      for (const light of lamps.lights) light.intensity = night * 66;
+      for (const root of lamps.group.children) {
+        root.traverse((object) => { if (object.isPointLight) object.intensity = night * 66; });
+      }
       lamps.bulb.emissiveIntensity = night * 1.6;
       for (const material of windowMaterials) material.emissiveIntensity = night * 0.92;
       for (const [index, material] of foliage.entries()) material.color.lerp(leafTargets[index], blend);

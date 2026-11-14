@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { createLayoutRegistry } from './campusLayout.js';
+import { createLayoutRegistry, rounded } from './campusLayout.js';
 import { batchStaticMeshes, box, canvasTexture, cylinder, groupAt, part, rod, seededRandom, unitPlane } from './sceneKit.js';
 
 const radians = THREE.MathUtils.degToRad;
@@ -181,10 +181,6 @@ function disposeInstances(root) {
   root.traverse((object) => { if (object.isInstancedMesh) object.dispose(); });
 }
 
-function canRemove(entry) {
-  return entry && entry.id !== 'pool' && entry.id !== 'pool-portal';
-}
-
 function fitGroundFixtures(fixtures, width) {
   let left = -width / 2 + facadeClearance;
   let remaining = fixtures.reduce((total, fixture) => total + fixture.span + facadeClearance, 0);
@@ -230,6 +226,8 @@ export function createCampusKit(map) {
   const colliders = [];
   const layout = createLayoutRegistry(map);
   const { add } = layout;
+  const buildingModels = new Map();
+  const parked = new Map();
   const prop = (parent, kind, name, x, z, yaw = 0, options) =>
     add(`${kind}:${x}:${z}`, groupAt(parent, name, [x, 0, z], yaw), undefined, options);
   const direction = (parent, settings) =>
@@ -341,6 +339,7 @@ export function createCampusKit(map) {
   }
 
   function building(parent, id, style, options = {}) {
+    buildingModels.set(id, { style, options });
     const spec = map.buildings[id];
     const { wall, trim, story, recess = 0, lattice = false, bands = false } = themes[style];
     const root = groupAt(parent, spec.label, [spec.x, 0, spec.z], radians(spec.yaw));
@@ -366,7 +365,8 @@ export function createCampusKit(map) {
     return root;
 
     function resize(requestedWidth, requestedDepth, requestedFloors, rebuildDoors = false) {
-      const extraDoors = Object.entries(map.elements ?? {}).filter(([, element]) => element.type === 'door' && element.building === id);
+      const extraDoors = Object.entries(map.elements ?? {}).filter(([doorId, element]) => element.type === 'door'
+        && element.building === id && !parked.has(doorId));
       const doorRoom = (side) => extraDoors.filter(([, door]) => door.wall === side).length * (addedDoorSpan + facadeClearance);
       const frontDoorRoom = fixtures.filter(({ door }) => door).reduce((total, fixture) => total + fixture.span + facadeClearance, 0);
       const width = THREE.MathUtils.clamp(requestedWidth, Math.max(minWidth,
@@ -650,7 +650,9 @@ export function createCampusKit(map) {
 
   function buildAdded(parent) {
     for (const [id, spec] of Object.entries(map.buildings)) {
-      if (spec.type === 'building') building(parent, id, 'utility');
+      if (spec.type !== 'building') continue;
+      const model = buildingModels.get(spec.template);
+      building(parent, id, model?.style ?? 'utility', model?.options);
     }
     for (const [id, spec] of Object.entries(map.elements ?? {})) {
       if (spec.type === 'tree') {
@@ -658,19 +660,25 @@ export function createCampusKit(map) {
         batchStaticMeshes(root);
       }
     }
+    for (const [id, spec] of Object.entries(map.elements ?? {})) {
+      if (spec.type === 'copy') copyProp(parent, id, spec);
+    }
+  }
+
+  function nextNumber(records, type) {
+    let number = 1;
+    while (Object.hasOwn(records, `added-${type}-${number}`)) number++;
+    return number;
   }
 
   function place(parent, type, position, mount) {
     const records = type === 'building' ? map.buildings : (map.elements ??= {});
-    let number = 1;
-    while (Object.hasOwn(records, `added-${type}-${number}`)) number++;
+    const number = nextNumber(records, type);
     const id = `added-${type}-${number}`;
     if (type === 'door') {
       const { entry, wall, offset } = mount;
       const host = entry.spec;
-      const count = Object.values(records).filter((item) => item.type === 'door'
-        && item.building === entry.id && item.wall === wall.id).length;
-      if ((count + 1) * (addedDoorSpan + facadeClearance) + facadeClearance > wall.span) return null;
+      if (!fitsDoor(mount)) return null;
       records[id] = { type, label: `Door ${number} · ${entry.label}`, building: entry.id, wall: wall.id, offset };
       entry.building.resize(host.width, host.depth, host.floors, true);
     } else {
@@ -688,8 +696,85 @@ export function createCampusKit(map) {
     return layout.objects.get(id);
   }
 
+  function copyProp(parent, id, spec, template = layout.objects.get(spec.template)) {
+    if (!template) return null;
+    const root = template.root.clone();
+    root.name = spec.label;
+    root.scale.copy(template.baseScale);
+    root.position.y = template.root.position.y;
+    (template.root.parent ?? parent).add(root);
+    const { surface, elevation } = template;
+    add(id, root, spec, { surface, elevation });
+    for (const record of colliders.slice()) {
+      if (record.group === template.root) {
+        const { x, z, width, depth } = record.local;
+        addLocalCollider(colliders, root, x, z, width, depth);
+      }
+    }
+    return layout.objects.get(id);
+  }
+
+  function canDuplicate(entry) {
+    return Boolean(entry && !entry.buildingId && !['pool', 'pool-portal', 'entry-gate'].includes(entry.id)
+      && !entry.id.startsWith('wall:'));
+  }
+
+  function duplicate(parent, entry, position) {
+    if (!canDuplicate(entry)) return null;
+    const baseLabel = entry.spec?.copyLabel ?? entry.label;
+    const label = `${baseLabel} copy`;
+    const pose = { x: position.x, z: position.z, yaw: rounded(THREE.MathUtils.radToDeg(entry.root.rotation.y)) };
+    if (entry.spec?.type === 'tree') {
+      const records = map.elements;
+      const id = `added-tree-${nextNumber(records, 'tree')}`;
+      const spec = { ...structuredClone(entry.spec), ...pose, label, copyLabel: baseLabel };
+      records[id] = spec;
+      batchStaticMeshes(tree(parent, spec.x, spec.z, 1, 'shade', spec.seed, id));
+      return layout.objects.get(id);
+    }
+    if (!entry.building) {
+      const records = map.elements ??= {};
+      const template = entry.spec?.template ?? entry.id;
+      const id = `added-copy-${nextNumber(records, 'copy')}`;
+      const spec = {
+        type: 'copy', template, label, copyLabel: baseLabel, ...pose,
+        scale: entry.root.scale.toArray().map((value, index) => rounded(value / entry.baseScale.getComponent(index)))
+      };
+      const result = copyProp(parent, id, spec, entry);
+      if (result) records[id] = spec;
+      return result;
+    }
+
+    const records = map.buildings;
+    const id = `added-building-${nextNumber(records, 'building')}`;
+    const template = entry.spec.template ?? (entry.spec.type !== 'building' ? entry.id : undefined);
+    const model = buildingModels.get(template) ?? buildingModels.get(entry.id);
+    records[id] = { ...structuredClone(entry.spec), ...pose, type: 'building', template, label, copyLabel: baseLabel };
+    const elements = map.elements ??= {};
+    for (const door of layout.objects.values()) {
+      if (door.buildingId !== entry.id) continue;
+      const number = nextNumber(elements, 'door');
+      elements[`added-door-${number}`] = {
+        ...structuredClone(door.spec), label: `Door ${number} · ${label}`, building: id
+      };
+    }
+    building(parent, id, model.style, model.options);
+    return layout.objects.get(id);
+  }
+
   function moveDoor(entry, offsetMetres) {
     entry.spec.offset = THREE.MathUtils.clamp(offsetMetres * 2 / entry.wallSpan, -1, 1);
+    rebuildDoors(entry.buildingId);
+  }
+
+  function fitsDoor({ entry, wall }) {
+    const count = [...layout.objects.values()].filter((item) => item.buildingId === entry.id && item.spec.wall === wall.id).length;
+    return (count + 1) * (addedDoorSpan + facadeClearance) + facadeClearance <= wall.span;
+  }
+
+  function mountDoor(entry, target) {
+    entry.spec.wall = target.wall.id;
+    entry.spec.offset = target.offset;
     rebuildDoors(entry.buildingId);
   }
 
@@ -699,60 +784,108 @@ export function createCampusKit(map) {
     host.building.resize(width, depth, floors, true);
   }
 
-  function detach(entry) {
-    const removed = [entry];
-    for (const child of layout.objects.values()) {
-      if (child.buildingId === entry.id) removed.push(child);
-    }
-    for (const item of removed) layout.objects.delete(item.id);
-    removeColliders(colliders, entry.root);
-    disposeInstances(entry.root);
-    entry.root.removeFromParent();
-    return removed;
+  function canRestore(record) {
+    const host = layout.objects.get(record.entry.buildingId);
+    return !record.entry.buildingId || Boolean(host?.building);
   }
 
-  function remove(entry) {
-    if (!canRemove(entry)) return null;
-    const parent = entry.root.parent;
-    const obstacleRecords = colliders.filter(({ group }) => isDescendantOf(entry.root, group));
-    const items = detach(entry);
-    const records = items.map((item) => {
-      const type = item.spec?.type;
-      const source = type === 'building' ? map.buildings : type === 'tree' || type === 'door' ? map.elements : null;
-      if (source) delete source[item.id];
-      else (map.removedObjects ??= []).push(item.id);
-      return { item, source };
+  function removeFromDeck(record) {
+    if (!record || record.entry.id === 'pool') return false;
+    record.setState('removed');
+    return true;
+  }
+
+  function setHiddenRecord(key, id, hidden) {
+    if (hidden) {
+      const list = map[key] ??= [];
+      if (!list.includes(id)) list.push(id);
+    } else if (map[key]) {
+      map[key] = map[key].filter((value) => value !== id);
+      if (!map[key].length) delete map[key];
+    }
+  }
+
+  function takeOffMap(entry, state = 'deck') {
+    if (!entry || entry.id === 'pool-portal') return null;
+    const detached = [];
+    const items = [];
+    for (const item of layout.objects.values()) {
+      if (item === entry || item.buildingId === entry.id || (entry.id === 'pool' && item.id === 'pool-portal')) {
+        items.push(item);
+      }
+    }
+    for (const item of items) layout.objects.delete(item.id);
+    const roots = entry.id === 'pool' ? items : [entry];
+    for (const item of roots) {
+      const parent = item.root.parent;
+      const obstacles = colliders.filter(({ group }) => isDescendantOf(item.root, group));
+      removeColliders(colliders, item.root);
+      item.root.removeFromParent();
+      disposeInstances(item.root);
+      detached.push({ item, parent, obstacles });
+    }
+    const dynamic = items.flatMap((item) => {
+      if (item.spec?.type === 'building') return [[item, map.buildings]];
+      if (['tree', 'door', 'copy'].includes(item.spec?.type)) return [[item, map.elements]];
+      return [];
     });
-    if (entry.buildingId) rebuildDoors(entry.buildingId);
+
+    let currentState;
+    const record = { entry, items, setState, restore };
+    function setState(next) {
+      const discard = next === 'removed' || next === 'discarded';
+      for (const [item, records] of dynamic) {
+        if (discard) delete records[item.id];
+        else records[item.id] = item.spec;
+      }
+      currentState = next;
+      setHiddenRecord('deck', entry.id, next === 'deck');
+      setHiddenRecord('removedObjects', entry.id, next === 'removed' && !dynamic.some(([item]) => item === entry));
+      if (next === 'deck') parked.set(entry.id, record);
+      else parked.delete(entry.id);
+    }
 
     function restore() {
-      for (const { item, source } of records) {
-        layout.objects.set(item.id, item);
-        if (source) source[item.id] = item.spec;
-        else map.removedObjects = map.removedObjects.filter((id) => id !== item.id);
+      if (!currentState) return;
+      setState(null);
+      for (const item of items) layout.objects.set(item.id, item);
+      for (const { item, parent, obstacles } of detached) {
+        parent.add(item.root);
+        colliders.push(...obstacles);
+        updateCollidersForGroup(colliders, item.root);
       }
-      if (map.removedObjects?.length === 0) delete map.removedObjects;
-      if (entry.buildingId) {
+      if (entry.buildingId && layout.objects.has(entry.buildingId)) {
         rebuildDoors(entry.buildingId);
-      } else {
-        parent.add(entry.root);
-        colliders.push(...obstacleRecords);
-        updateCollidersForGroup(colliders, entry.root);
       }
     }
-    return { items, restore };
+    setState(state);
+    if (entry.buildingId) rebuildDoors(entry.buildingId);
+    return record;
   }
 
-  function applyRemovals() {
-    for (const id of map.removedObjects ?? []) {
+  function applyVisibility() {
+    const deck = new Set(map.deck);
+    for (const id of [...(map.removedObjects ?? [])]) {
       const entry = layout.objects.get(id);
-      if (canRemove(entry)) detach(entry);
+      if (entry?.buildingId) takeOffMap(entry, 'removed');
+    }
+    for (const id of deck) {
+      const entry = layout.objects.get(id);
+      if (entry?.buildingId) takeOffMap(entry);
+    }
+    for (const id of deck) {
+      const entry = layout.objects.get(id);
+      if (entry) takeOffMap(entry);
+    }
+    for (const id of [...(map.removedObjects ?? [])]) {
+      takeOffMap(layout.objects.get(id), 'removed');
     }
   }
 
   return {
     map, materials, colliders, foliage, windowMaterials, building, windowAt, tree, shrub, flowerBed, planter, bench, bus,
-    direction, prop, layout, buildAdded, place, moveDoor, rebuildDoors, remove, applyRemovals,
+    direction, prop, layout, parked, buildAdded, place, canDuplicate, duplicate, moveDoor, fitsDoor, mountDoor, rebuildDoors,
+    takeOffMap, applyVisibility, canRestore, removeFromDeck,
     refreshColliders: (root) => updateCollidersForGroup(colliders, root)
   };
 }

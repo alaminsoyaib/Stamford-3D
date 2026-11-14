@@ -5,22 +5,30 @@ const scaleMax = 20;
 const xz = new THREE.Vector3();
 
 export function readCampusLayout(source) {
-  // A changed source file starts a new layout, even in a tab with earlier edits.
+  // A changed source file starts a new saved layout.
   let hash = 2166136261;
   for (let i = 0; i < source.length; i++) hash = Math.imul(hash ^ source.charCodeAt(i), 16777619);
   const key = `stamford-layout-v1-${hash >>> 0}`;
   let map = JSON.parse(source);
-  try {
-    const saved = sessionStorage.getItem(key);
-    if (saved) map = JSON.parse(saved);
-  } catch {
-    // A fresh map is usable without session storage.
+  for (const storage of ['sessionStorage', 'localStorage']) {
+    try {
+      const saved = window[storage].getItem(key);
+      if (saved) {
+        map = JSON.parse(saved);
+        break;
+      }
+    } catch {
+      // The source map stays available when storage is blocked.
+    }
   }
   return { map, save() {
-    try {
-      sessionStorage.setItem(key, JSON.stringify(map));
-    } catch {
-      // JSON export still works when session storage is unavailable.
+    const json = JSON.stringify(map);
+    for (const storage of ['localStorage', 'sessionStorage']) {
+      try {
+        window[storage].setItem(key, json);
+      } catch {
+        // JSON export stays available when storage is blocked.
+      }
     }
   } };
 }
@@ -122,6 +130,7 @@ export function limitScale(entry) {
 export function createPoolOpening(pool, root) {
   const worldToPool = new THREE.Matrix4();
   const halfSize = new THREE.Vector2(pool.width / 2, pool.depth / 2);
+  const enabled = { value: true };
   const materials = new Map();
   function sync() {
     root.updateWorldMatrix(true, false);
@@ -130,6 +139,7 @@ export function createPoolOpening(pool, root) {
   sync();
   return {
     sync,
+    setEnabled(value) { enabled.value = value; },
     local(position, target) { return target.copy(position).applyMatrix4(worldToPool); },
     terrain(material) {
       if (materials.has(material)) return materials.get(material);
@@ -137,6 +147,7 @@ export function createPoolOpening(pool, root) {
       clipped.onBeforeCompile = (shader) => {
         shader.uniforms.campusPoolInverse = { value: worldToPool };
         shader.uniforms.campusPoolHalfSize = { value: halfSize };
+        shader.uniforms.campusPoolEnabled = enabled;
         shader.vertexShader = `uniform mat4 campusPoolInverse;
           varying vec2 campusPoolXZ;
           ${shader.vertexShader.replace('#include <project_vertex>', `
@@ -147,10 +158,11 @@ export function createPoolOpening(pool, root) {
             campusPoolXZ = (campusPoolInverse * modelMatrix * poolVertex).xz;
             #include <project_vertex>`)}`;
         shader.fragmentShader = `uniform vec2 campusPoolHalfSize;
+          uniform bool campusPoolEnabled;
           varying vec2 campusPoolXZ;
           ${shader.fragmentShader.replace('#include <clipping_planes_fragment>', `
             #include <clipping_planes_fragment>
-            if (all(lessThan(abs(campusPoolXZ), campusPoolHalfSize))) discard;`)}`;
+            if (campusPoolEnabled && all(lessThan(abs(campusPoolXZ), campusPoolHalfSize))) discard;`)}`;
       };
       materials.set(material, clipped);
       return clipped;

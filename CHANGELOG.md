@@ -6,6 +6,8 @@ Record completed changes here, with verification when it helps a future handoff.
 
 ### Added
 
+- Added direct object dragging with grid snapping, a searchable placement deck, building and prop duplication, and an undoable **Clear to deck** action. Stored buildings retain their doors, and the pool retains its portal.
+- Added a land boundary tool for drawing and reshaping a polygon. The applied outline drives terrain, placement, walking, and the minimap. Browser saves and JSON export include the outline and deck.
 - Added `package.json` and `vite.config.js` configuring multi-page bundling (`index.html` and `underwater.html`) and local development via `npm run dev` (`127.0.0.1:8090`).
 - Added live in-browser Layout Editor Mode toggled with `[E]`, supporting raycast landmark picking, `THREE.BoxHelper` visual selection highlights, arrow key translation (1m step, 5m with Shift), rotation (`Q`/`T` by 15°), real-time collider bounds synchronization, and one-click JSON clipboard export & map download.
 - Preserved hierarchical static mesh batching across modular landmarks so buildings remain translated/rotated and picked as cohesive units.
@@ -30,10 +32,12 @@ Record completed changes here, with verification when it helps a future handoff.
 
 ### Verification
 
+- Verified both physical portal crossings, desktop pointer lock on entry, and the touch portal buttons after combining the portal shortcuts with the campus editor changes. Automatic arrivals use drag-to-look.
 - Verified bi-directional `P` key shortcut transitions via browser tests: switching from Campus landing view loads Deep Sea landing view; pressing `P` again returns to Campus landing view; clicking "Enter campus" and pressing `P` while roaming smoothly transitions directly to active roaming view in Deep Sea (`?roam=1`); pressing `P` while roaming underwater returns directly to active roaming view at the Swimming Pool (`?arrival=pool&roam=1`).
 
 - Verified in-browser live UI at `http://127.0.0.1:8090/index.html?arrival=pool`: confirmed the top-left location badge renders with compact vertical height (~34.6px), contains no "ZONE D" text, and displays the crisp SVG map pin icon immediately to the left of "Central Ground".
 
+- Verified direct mouse dragging, deck drag and drop, touch placement, bulk undo and redo, and confirmed deletion. Tested attached doors and model copies through browser reload and JSON export in a fresh session. Checked corner dragging, concave boundaries, rejection of crossed edges, and walking limits. Verified both physical portal crossings and built both pages with Vite.
 - Verified the CSE hero on desktop and touch, including a saved floor-count edit, entry into the live scene, the layout editor, and a portal round trip. Checked transparent capture and responsive framing, and built both pages with Vite.
 - Checked both landing screens and live HUDs in Chrome on desktop, tablet, and touch layouts from 320 px to 1905 px wide. Verified pointer lock, drag and touch movement, keyboard weather controls, editor entry, both portal buttons, and both physical portal crossings. Rebuilt both pages with Vite.
 - Ran `npm i` and verified successful installation of `three` and `vite`.

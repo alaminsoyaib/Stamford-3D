@@ -87,47 +87,100 @@
     <section id="layout-editor" class="layout-editor" hidden aria-labelledby="editor-title">
       <div class="editor-header">
         <h2 id="editor-title">Campus layout</h2>
-        <button type="button" id="editor-close" class="editor-close">Exit <kbd>E</kbd></button>
+        <button type="button" id="editor-close" class="editor-close">Done <kbd>E</kbd></button>
       </div>
-      <div class="editor-palette" role="group" aria-label="Place an item">
-        <button type="button" draggable="true" data-place="tree" aria-pressed="false">+ Tree</button>
-        <button type="button" draggable="true" data-place="door" aria-pressed="false">+ Door</button>
-        <button type="button" draggable="true" data-place="building" aria-pressed="false">+ Building</button>
-      </div>
-      <p id="editor-placement" class="editor-placement" role="status" hidden></p>
-      <label class="editor-picker">Object
-        <select id="editor-object"><option value="">Select an object</option></select>
-      </label>
       <div class="editor-view-tools">
-        <button type="button" id="editor-focus" disabled>Frame selection</button>
         <button type="button" id="editor-fit">Fit campus</button>
         <button type="button" id="editor-tilt">Tilt view</button>
+        <button type="button" id="editor-land-toggle" aria-pressed="false">Land boundary</button>
       </div>
-      <div class="editor-modes" role="group" aria-label="Transform tool">
-        <button type="button" data-editor-mode="translate" aria-pressed="true" disabled>Move <kbd>G</kbd></button>
-        <button type="button" data-editor-mode="rotate" aria-pressed="false" disabled>Rotate <kbd>R</kbd></button>
-        <button type="button" data-editor-mode="scale" aria-pressed="false" disabled>Scale <kbd>S</kbd></button>
-      </div>
-      <fieldset id="editor-fields" disabled>
-        <legend>Transform</legend>
-        <div class="editor-values">
-          <label>X (m)<input data-transform="position.x" type="number" step="any"></label>
-          <label>Z (m)<input data-transform="position.z" type="number" step="any"></label>
-          <label>Yaw (°)<input data-transform="yaw" type="number" step="any"></label>
-          <label><span data-size-label="x">Width (%)</span><input data-transform="scale.x" type="number" step="any"></label>
-          <label><span data-size-label="z">Depth (%)</span><input data-transform="scale.z" type="number" step="any"></label>
-          <label><span data-size-label="y">Height (%)</span><input data-transform="scale.y" type="number" step="any"></label>
-          <label id="editor-elevation" hidden>Y (m)<input data-transform="position.y" type="number" step="any"></label>
-          <label id="editor-door-offset" hidden>Along wall (m)<input data-transform="door" type="number" step="any"></label>
+      <label class="editor-grid-control">Snap to grid
+        <select id="editor-grid">
+          <option value="0">Off</option>
+          <option value="0.5">0.5 m</option>
+          <option value="1" selected>1 m</option>
+          <option value="2">2 m</option>
+          <option value="5">5 m</option>
+        </select>
+      </label>
+      <div id="editor-object-panel">
+        <label class="editor-picker">Object
+          <select id="editor-object"><option value="">Select an object</option></select>
+        </label>
+        <div class="editor-view-tools">
+          <button type="button" id="editor-focus" disabled>Frame selection</button>
+          <button type="button" id="editor-duplicate" title="Duplicate (Ctrl+D)" disabled>Duplicate</button>
+          <button type="button" id="editor-store" disabled>Store</button>
         </div>
-        <output id="editor-size-detail" class="editor-size-detail" hidden></output>
-      </fieldset>
-      <div class="editor-actions">
+        <div class="editor-modes" role="group" aria-label="Transform tool">
+          <button type="button" data-editor-mode="translate" aria-pressed="true" disabled>Move <kbd>G</kbd></button>
+          <button type="button" data-editor-mode="rotate" aria-pressed="false" disabled>Rotate <kbd>R</kbd></button>
+          <button type="button" data-editor-mode="scale" aria-pressed="false" disabled>Scale <kbd>S</kbd></button>
+        </div>
+        <fieldset id="editor-fields" disabled>
+          <legend>Transform</legend>
+          <div class="editor-values">
+            <label>X (m)<input data-transform="position.x" type="number" step="any"></label>
+            <label>Z (m)<input data-transform="position.z" type="number" step="any"></label>
+            <label>Yaw (°)<input data-transform="yaw" type="number" step="any"></label>
+            <label><span data-size-label="x">Width (%)</span><input data-transform="scale.x" type="number" step="any"></label>
+            <label><span data-size-label="z">Depth (%)</span><input data-transform="scale.z" type="number" step="any"></label>
+            <label><span data-size-label="y">Height (%)</span><input data-transform="scale.y" type="number" step="any"></label>
+            <label id="editor-elevation" hidden>Y (m)<input data-transform="position.y" type="number" step="any"></label>
+            <label id="editor-door-offset" hidden>Along wall (m)<input data-transform="door" type="number" step="any"></label>
+          </div>
+          <output id="editor-size-detail" class="editor-size-detail" hidden></output>
+        </fieldset>
+      </div>
+      <div id="editor-land" hidden>
+        <div class="editor-land-summary"><output id="editor-land-size"></output><output id="editor-land-corners"></output></div>
+        <p id="editor-land-help" class="editor-placement"></p>
+        <div class="editor-values">
+          <label>Corner X (m)<input id="editor-land-x" type="number" step="any"></label>
+          <label>Corner Z (m)<input id="editor-land-z" type="number" step="any"></label>
+        </div>
+        <div class="editor-view-tools">
+          <button type="button" id="editor-land-redraw">Draw new</button>
+          <button type="button" id="editor-land-remove">Remove corner</button>
+        </div>
+        <div class="editor-actions">
+          <button type="button" id="editor-land-apply" class="editor-export">Apply boundary</button>
+          <button type="button" id="editor-land-cancel">Cancel</button>
+        </div>
+      </div>
+      <div class="editor-actions editor-save">
         <button type="button" id="editor-download-json" class="editor-export">Export JSON</button>
         <button type="button" id="editor-copy-json">Copy JSON</button>
       </div>
-      <div id="editor-feedback" class="editor-feedback" role="status"></div>
     </section>
+    <section id="editor-deck" class="editor-deck" hidden aria-labelledby="editor-deck-title">
+      <div class="editor-deck-header">
+        <h2 id="editor-deck-title">Placement deck <output id="editor-deck-count">0</output></h2>
+        <div class="editor-history" role="group" aria-label="Edit history">
+          <button type="button" id="editor-undo" title="Undo (Ctrl+Z)" disabled>Undo</button>
+          <button type="button" id="editor-redo" title="Redo (Ctrl+Shift+Z)" disabled>Redo</button>
+        </div>
+        <button type="button" id="editor-clear">Clear to deck</button>
+      </div>
+      <div class="editor-palette" role="group" aria-label="New objects">
+        <button type="button" draggable="true" data-place="building" aria-pressed="false">+ Building</button>
+        <button type="button" draggable="true" data-place="tree" aria-pressed="false">+ Tree</button>
+        <button type="button" draggable="true" data-place="door" aria-pressed="false">+ Door</button>
+        <input type="search" id="editor-deck-search" placeholder="Find stored objects" aria-label="Find stored objects" hidden>
+      </div>
+      <div id="editor-deck-list" class="editor-deck-list" aria-label="Stored objects" hidden></div>
+      <div id="editor-feedback" class="editor-feedback" role="status" hidden></div>
+    </section>
+    <dialog id="editor-confirm" class="editor-confirm" aria-labelledby="editor-confirm-title" aria-describedby="editor-confirm-description">
+      <form method="dialog">
+        <h2 id="editor-confirm-title">Delete stored object?</h2>
+        <p id="editor-confirm-description"></p>
+        <div class="editor-actions">
+          <button value="cancel" autofocus>Cancel</button>
+          <button value="delete" class="editor-danger">Delete</button>
+        </div>
+      </form>
+    </dialog>
   </main>
 
   <div class="transition" aria-hidden="true"><strong>Crossing the portal</strong></div>

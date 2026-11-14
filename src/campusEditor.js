@@ -3,6 +3,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import { maxBuildingFloors, maxBuildingSpan } from './buildingFactory.js';
 import { limitScale, rounded } from './campusLayout.js';
+import { fitsLand, insideLand, landExtent } from './campusBoundary.js';
+import { createLandEditor } from './campusLandEditor.js';
 
 const modes = { KeyG: 'translate', KeyR: 'rotate', KeyS: 'scale' };
 const nudges = { ArrowLeft: ['x', -1], ArrowRight: ['x', 1], ArrowUp: ['z', -1], ArrowDown: ['z', 1] };
@@ -17,16 +19,28 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
   const { renderer, scene } = runtime;
   const canvas = renderer.domElement;
   const panel = document.getElementById('layout-editor');
+  const deck = document.getElementById('editor-deck');
+  const deckList = document.getElementById('editor-deck-list');
+  const deckCount = document.getElementById('editor-deck-count');
+  const deckSearch = document.getElementById('editor-deck-search');
+  const clearButton = document.getElementById('editor-clear');
+  const storeButton = document.getElementById('editor-store');
+  const duplicateButton = document.getElementById('editor-duplicate');
+  const undoButton = document.getElementById('editor-undo');
+  const redoButton = document.getElementById('editor-redo');
+  const grid = document.getElementById('editor-grid');
+  const confirm = document.getElementById('editor-confirm');
+  const confirmDescription = document.getElementById('editor-confirm-description');
   const picker = document.getElementById('editor-object');
   const fields = [...panel.querySelectorAll('[data-transform]')];
   const sizeLabels = [...panel.querySelectorAll('[data-size-label]')];
   const tools = [...panel.querySelectorAll('[data-editor-mode]')];
   const feedback = document.getElementById('editor-feedback');
   const { objects: entries, captureTransform, restoreTransform } = kit.layout;
+  const { parked } = kit;
   const undo = [];
   const redo = [];
-  const palette = [...panel.querySelectorAll('[data-place]')];
-  const placementStatus = document.getElementById('editor-placement');
+  const palette = [...deck.querySelectorAll('[data-place]')];
   const sizeDetail = document.getElementById('editor-size-detail');
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.5, 650);
   const gizmo = new TransformControls(camera, canvas);
@@ -40,12 +54,12 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
   const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0));
   const groundPoint = new THREE.Vector3();
   const localPoint = new THREE.Vector3();
-  const marker = new THREE.Mesh(new THREE.RingGeometry(0.86, 1, 32), new THREE.MeshBasicMaterial({
-    color: 0xe7fcaf, side: THREE.DoubleSide, depthTest: false
-  }));
-  marker.rotation.x = -Math.PI / 2;
-  marker.renderOrder = 999;
-  marker.visible = false;
+  const footprint = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-0.5, 0, -0.5), new THREE.Vector3(0.5, 0, -0.5),
+    new THREE.Vector3(0.5, 0, 0.5), new THREE.Vector3(-0.5, 0, 0.5)
+  ]), new THREE.LineBasicMaterial({ color: 0x9fd9ff, depthTest: false, fog: false, toneMapped: false }));
+  footprint.renderOrder = 999;
+  footprint.visible = false;
   const resizeHandle = new THREE.Object3D();
   let selected = null;
   let active = false;
@@ -54,17 +68,30 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
   let height;
   let timer;
   let placement = null;
-  let paletteDrag = false;
+  let previewSize = null;
+  let cardDrag = false;
+  let pendingDelete = null;
   let dimensions;
   let resizeQueued = false;
   let lastResize = 0;
   let beforeEdit = null;
+  const land = createLandEditor(scene, panel, kit.map, {
+    input: () => Number(grid.value), commit: commitBoundary, message,
+    onMode(value) {
+      if (value) {
+        setPlacement();
+        select(null);
+        document.body.dataset.land = 'true';
+      } else delete document.body.dataset.land;
+      mode(gizmo.getMode());
+    }
+  });
 
   outline.material.depthTest = false;
   outline.material.fog = false;
   outline.renderOrder = 1000;
   outline.visible = false;
-  scene.add(outline, gizmo.getHelper(), resizeHandle, marker);
+  scene.add(outline, gizmo.getHelper(), resizeHandle, footprint);
   gizmo.enabled = orbit.enabled = false;
   gizmo.setSize(0.93);
   gizmo.setSpace('world');
@@ -81,18 +108,29 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
     width = canvas.clientWidth;
     height = canvas.clientHeight;
     const aspect = width / Math.max(1, height);
-    const half = Math.max(77, 68 / aspect);
+    const compact = width <= 620;
+    const usableWidth = Math.max(width * 0.5, width - (compact ? 24 : 350));
+    const top = compact ? Math.min(panel.getBoundingClientRect().bottom + 12, height * 0.38) : 24;
+    const deckHeight = Math.max(compact ? 125 : 106, deck.getBoundingClientRect().height + 24);
+    const bottom = height - Math.min(deckHeight, height * 0.32);
+    const usableHeight = Math.max(height * 0.28, bottom - top);
+    const { minX, maxX, minZ, streetZ } = landExtent(kit.map.boundary);
+    const half = Math.max(18, (streetZ - minZ) * 0.55 * height / usableHeight, (maxX - minX) * 0.55 * height / usableWidth);
     Object.assign(camera, { left: -half * aspect, right: half * aspect, top: half, bottom: -half });
-    if (width <= 620) camera.setViewOffset(width, height, 0, height * 0.2, width, height);
-    else camera.clearViewOffset();
+    const offsetX = compact ? 0 : (width - usableWidth) / 2;
+    camera.setViewOffset(width, height, offsetX, (height - top - bottom) / 2, width, height);
   }
 
   function fit() {
-    const { minX, maxX, minZ, streetZ } = kit.map.boundary;
+    const { minX, maxX, minZ, streetZ } = landExtent(kit.map.boundary);
     orbit.target.set((minX + maxX) / 2, 0, (minZ + streetZ) / 2);
-    camera.position.copy(orbit.target).add(new THREE.Vector3(0, 162, 55));
-    camera.zoom = 1;
+    const span = Math.max(maxX - minX, streetZ - minZ);
+    const heightAboveGround = Math.max(120, span * 1.24);
+    camera.position.copy(orbit.target).add(new THREE.Vector3(0, heightAboveGround, heightAboveGround * 0.14));
+    camera.far = Math.max(650, heightAboveGround * 3);
     resize();
+    camera.zoom = 1;
+    camera.updateProjectionMatrix();
     orbit.update();
   }
 
@@ -132,7 +170,7 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
     gizmo.showX = gizmo.showZ = value !== 'rotate';
     gizmo.showY = value === 'rotate' || (value === 'scale' && !selected?.surface)
       || (value === 'translate' && Boolean(selected?.elevation));
-    if (!selected || selected.buildingId || placement) gizmo.detach();
+    if (!selected || selected.buildingId || placement || land.active) gizmo.detach();
     else if (selected.building && value === 'scale') {
       selected.root.getWorldPosition(resizeHandle.position);
       selected.root.getWorldQuaternion(resizeHandle.quaternion);
@@ -148,9 +186,13 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
   function select(entry) {
     selected = entry;
     picker.value = entry?.id ?? '';
+    panel.querySelector('#editor-object-panel').dataset.selected = String(Boolean(entry));
     outline.visible = Boolean(entry);
     document.getElementById('editor-focus').disabled = !entry;
-    document.getElementById('editor-fields').disabled = !entry;
+    const fieldset = document.getElementById('editor-fields');
+    fieldset.disabled = fieldset.hidden = !entry;
+    storeButton.disabled = !entry || entry.id === 'pool-portal';
+    duplicateButton.disabled = !kit.canDuplicate(entry);
     for (const button of tools) button.disabled = !entry || Boolean(entry.buildingId);
     if (entry) {
       outline.box = entry.bounds;
@@ -162,6 +204,7 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
   }
 
   function refreshEntry(entry) {
+    if (!entry) return;
     if (!entry.option) {
       const option = document.createElement('option');
       option.value = entry.id;
@@ -196,6 +239,12 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
     undo.push(change);
     if (undo.length > historyLimit) undo.shift();
     redo.length = 0;
+    updateHistory();
+  }
+
+  function updateHistory() {
+    undoButton.disabled = !undo.length;
+    redoButton.disabled = !redo.length;
   }
 
   function beginTransform() {
@@ -229,10 +278,17 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
   function changed(commit = true) {
     if (!selected) return;
     if (!selected.buildingId) limitScale(selected);
-    if (commit && beforeEdit && JSON.stringify(beforeEdit) === JSON.stringify(captureTransform(selected))) {
-      beforeEdit = null;
-      updateFields();
-      return;
+    if (commit && kit.map.boundary.points && beforeEdit && !selected.buildingId) {
+      const { x, z } = selected.root.position;
+      const isPool = selected.id === 'pool';
+      const valid = isPool ? poolFits(kit.map.boundary, x, z, selected.root) : insideLand(kit.map.boundary, x, z);
+      if (!valid && (isPool || beforeEdit.pose[0] !== x || beforeEdit.pose[2] !== z)) {
+        applyTransform(selected, beforeEdit);
+        beforeEdit = null;
+        onLayoutChange();
+        message(isPool ? 'Keep the pool and its steps inside the boundary.' : 'Choose a spot inside the land boundary.');
+        return;
+      }
     }
     const root = selected.root;
     root.updateWorldMatrix(true, false);
@@ -285,6 +341,16 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
     ray.setFromCamera(ndc, camera);
   }
 
+  function snap(value) {
+    const size = Number(grid.value);
+    return rounded(size ? Math.round(value / size) * size : value);
+  }
+
+  function landPoint(event) {
+    pointRay(event);
+    return ray.ray.intersectPlane(ground, groundPoint);
+  }
+
   function wallPlacement(host) {
     let closest;
     let distance = Infinity;
@@ -324,59 +390,111 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
   }
 
   function placementTarget(event) {
-    pointRay(event);
-    if (!ray.ray.intersectPlane(ground, groundPoint)) return null;
-    if (placement === 'door') {
+    if (!landPoint(event)) return null;
+    if (placement.type === 'door' || placement.entry?.buildingId) {
       const hit = pick(event);
       const host = hit?.building ? hit : entries.get(hit?.buildingId);
+      const originalHost = placement.entry && entries.get(placement.entry.buildingId);
+      if (placement.entry && (!originalHost || (host && host !== originalHost))) return null;
       if (host) {
         // Use the visible wall or roof hit even when the ground ray lands beyond the building.
         const [contact] = ray.intersectObjects(hit.meshes, false);
         if (contact) groundPoint.copy(contact.point);
       }
-      return wallPlacement(host);
+      const wall = wallPlacement(originalHost ?? host);
+      return wall && { ...wall, valid: kit.fitsDoor(wall) };
     }
-    const { minX, maxX, minZ, maxZ } = kit.map.boundary;
-    return groundPoint.x >= minX && groundPoint.x <= maxX && groundPoint.z >= minZ && groundPoint.z <= maxZ;
+    const position = { x: snap(groundPoint.x), z: snap(groundPoint.z) };
+    const entry = placement.entry;
+    const valid = entry?.id === 'pool' ? poolFits(kit.map.boundary, position.x, position.z)
+      : insideLand(kit.map.boundary, position.x, position.z);
+    return { position, valid };
+  }
+
+  function poolFits(boundary, x, z, root) {
+    const { width, depth, yaw = 0, scale = [1, 1, 1] } = kit.map.pool;
+    const angle = root?.rotation.y ?? THREE.MathUtils.degToRad(yaw);
+    const halfWidth = width * (root?.scale.x ?? scale[0]) / 2;
+    const halfDepth = depth * (root?.scale.z ?? scale[2]) / 2;
+    return fitsLand(boundary, [[-halfWidth, -halfDepth], [halfWidth, -halfDepth],
+      [halfWidth, halfDepth + 1], [-halfWidth, halfDepth + 1]].map(([dx, dz]) => [
+      x + dx * Math.cos(angle) + dz * Math.sin(angle),
+      z - dx * Math.sin(angle) + dz * Math.cos(angle)
+    ]));
   }
 
   function showPlacement(event) {
     if (!active || !placement) return;
     const target = placementTarget(event);
-    marker.visible = Boolean(target);
+    footprint.visible = Boolean(target);
     if (!target) return;
-    if (placement === 'door') {
+    if (target.wall) {
       const { entry, wall, offset } = target;
       const along = THREE.MathUtils.clamp(offset * wall.span / 2, -wall.span / 2 + 0.9, wall.span / 2 - 0.9);
-      marker.position.set(wall.x + along * Math.cos(wall.angle), 0.06, wall.z - along * Math.sin(wall.angle));
-      entry.root.localToWorld(marker.position);
-      marker.scale.setScalar(0.8);
+      footprint.position.set(wall.x + along * Math.cos(wall.angle), 0.15, wall.z - along * Math.sin(wall.angle));
+      entry.root.localToWorld(footprint.position);
+      footprint.rotation.y = entry.root.rotation.y + wall.angle;
+      footprint.scale.set(1.75, 1, 0.7);
     } else {
-      marker.position.set(groundPoint.x, 0.06, groundPoint.z);
-      marker.scale.setScalar(placement === 'building' ? 3 : 1);
+      const { position } = target;
+      footprint.position.set(position.x, 0.15, position.z);
+      footprint.rotation.y = previewSize.yaw;
+      footprint.scale.set(previewSize.width, 1, previewSize.depth);
     }
+    footprint.material.color.set(target.valid === false ? 0xf58f87 : 0x9fd9ff);
   }
 
-  function setPlacement(type = null) {
-    placement = type;
-    marker.visible = false;
-    if (type) document.body.dataset.placement = type;
-    else delete document.body.dataset.placement;
-    for (const button of palette) button.setAttribute('aria-pressed', String(button.dataset.place === type));
-    placementStatus.hidden = !type;
-    placementStatus.textContent = type ? placeTips[type] : '';
+  function setPlacement(next = null) {
+    placement = next;
+    footprint.visible = false;
+    if (next) {
+      if (land.active) land.end();
+      const { entry, type } = next;
+      if (entry && (entry.building || entry.id === 'pool')) {
+        previewSize = {
+          width: entry.spec.width * entry.root.scale.x,
+          depth: entry.spec.depth * entry.root.scale.z,
+          yaw: entry.root.rotation.y
+        };
+      } else {
+        const span = entry && entry.bounds.getSize(size);
+        previewSize = { width: span?.x || (type === 'building' ? 10 : 3),
+          depth: span?.z || (type === 'building' ? 8 : 3), yaw: 0 };
+      }
+      document.body.dataset.placement = next.kind;
+    } else {
+      previewSize = null;
+      delete document.body.dataset.placement;
+    }
+    for (const button of palette) button.setAttribute('aria-pressed', String(button.dataset.place === next?.type));
+    for (const button of deckList.querySelectorAll('[data-stored]')) {
+      button.setAttribute('aria-pressed', String(next?.kind === 'stored' && next.entry.id === button.dataset.stored));
+    }
     mode(gizmo.getMode());
+    if (next) {
+      const instruction = next.kind === 'new' ? placeTips[next.type]
+        : next.entry.buildingId ? 'Choose a wall of the original building.' : `Choose a spot for ${next.entry.label}.`;
+      message(instruction);
+    } else feedback.hidden = true;
   }
 
   function place(event) {
     const target = placementTarget(event);
-    if (!target) {
-      message(placement === 'door' ? 'Choose an exterior wall or a building roof edge.' : 'Choose ground inside the campus boundary.');
+    if (!target || target.valid === false) {
+      if (target?.wall) message('This wall has no room for another door.');
+      else if (placement.type === 'door' || placement.entry?.buildingId) message('Choose an exterior wall on the map.');
+      else if (placement.entry?.id === 'pool') message('Keep the pool and its steps inside the boundary.');
+      else message('Choose a spot inside the land boundary.');
+      return;
+    }
+    if (placement.kind === 'stored') {
+      placeStored(parked.get(placement.entry.id), target);
       return;
     }
     const host = target.entry;
     const before = host && captureTransform(host);
-    const entry = kit.place(scene, placement, { x: rounded(groundPoint.x), z: rounded(groundPoint.z) }, target);
+    const entry = placement.kind === 'copy' ? kit.duplicate(scene, placement.entry, target.position)
+      : kit.place(scene, placement.type, target.position, target);
     if (!entry) {
       message('This wall has no room for another door.');
       return;
@@ -384,75 +502,190 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
     refreshAffected(entry);
     setPlacement();
     select(entry);
-    remember();
-    changed();
-    recordPresence(entry, true, null, before, host && captureTransform(host));
+    canvas.focus({ preventScroll: true });
+    recordPresence(entry, true, null, before, host && captureTransform(host), 'discarded');
+    finishLayoutChange();
     message(`${entry.label} placed.`);
   }
 
-  for (const button of palette) {
+  function bindPlacement(button, getPlacement) {
     button.addEventListener('click', () => {
-      if (!gizmo.dragging) setPlacement(placement === button.dataset.place ? null : button.dataset.place);
+      if (gizmo.dragging || pointer?.dragging) return;
+      const next = getPlacement();
+      setPlacement(placement?.kind === next.kind && placement.type === next.type && placement.entry === next.entry ? null : next);
     });
     button.addEventListener('dragstart', (event) => {
       if (gizmo.dragging) {
         event.preventDefault();
         return;
       }
-      paletteDrag = true;
-      setPlacement(button.dataset.place);
-      event.dataTransfer.setData('text/plain', placement);
-      event.dataTransfer.effectAllowed = 'copy';
+      cardDrag = true;
+      const next = getPlacement();
+      setPlacement(next);
+      event.dataTransfer.setData('text/plain', next.entry?.label ?? next.type);
+      event.dataTransfer.effectAllowed = next.kind === 'stored' ? 'move' : 'copy';
     });
     button.addEventListener('dragend', () => {
-      paletteDrag = false;
+      cardDrag = false;
       setPlacement();
     });
   }
+  for (const button of palette) bindPlacement(button, () => ({ kind: 'new', type: button.dataset.place }));
   canvas.addEventListener('dragover', (event) => {
-    if (!active || !paletteDrag || !placement) return;
+    if (!active || !cardDrag || !placement) return;
     event.preventDefault();
-    event.dataTransfer.dropEffect = 'copy';
+    event.dataTransfer.dropEffect = placement.kind === 'stored' ? 'move' : 'copy';
     showPlacement(event);
   });
   canvas.addEventListener('drop', (event) => {
-    if (!active || !paletteDrag || !placement) return;
+    if (!active || !cardDrag || !placement) return;
     event.preventDefault();
     place(event);
   });
-  canvas.addEventListener('pointermove', showPlacement);
-  canvas.addEventListener('pointerleave', () => { marker.visible = false; });
-  canvas.addEventListener('dragleave', () => { marker.visible = false; });
-  canvas.addEventListener('pointerdown', (event) => {
-    if (!active || !event.isPrimary || event.button !== 0 || gizmo.dragging) return;
-    pointer = { id: event.pointerId, x: event.clientX, y: event.clientY };
-  });
-  canvas.addEventListener('pointerup', (event) => {
-    if (!pointer || event.pointerId !== pointer.id) return;
-    const distance = Math.hypot(event.clientX - pointer.x, event.clientY - pointer.y);
+  canvas.addEventListener('pointerleave', () => { if (!pointer?.dragging) footprint.visible = false; });
+  canvas.addEventListener('dragleave', () => { footprint.visible = false; });
+  function consume(event) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }
+
+  function overDeck(event) {
+    const rect = deck.getBoundingClientRect();
+    return event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom;
+  }
+
+  function startPointer(event) {
+    if (!active || event.button !== 0 || gizmo.dragging || event.altKey) return;
+    if (!event.isPrimary) {
+      if (pointer?.captured) consume(event);
+      else pointer = null;
+      return;
+    }
+    if (pointer) return;
+    const pending = { id: event.pointerId, x: event.clientX, y: event.clientY, captured: false };
+    if (!placement && !land.active && gizmo.object) {
+      pointRay(event);
+      gizmo.getHelper().updateMatrixWorld(true);
+      gizmo.pointerHover({ x: ndc.x, y: ndc.y, button: 0 });
+      if (gizmo.axis) return;
+    }
+    const hit = !placement && !land.active && pick(event);
+    if (land.active) {
+      camera.updateMatrixWorld();
+      pending.corner = land.findCorner(event, camera, canvas.getBoundingClientRect());
+      if (pending.corner >= 0) {
+        pending.originalCorner = land.getCorner(pending.corner);
+        land.select(pending.corner);
+      }
+    }
+    if (hit) {
+      select(hit);
+      if (!hit.buildingId && landPoint(event)) {
+        pending.entry = hit;
+        pending.offsetX = hit.root.position.x - groundPoint.x;
+        pending.offsetZ = hit.root.position.z - groundPoint.z;
+      }
+    }
+    if (placement || pending.corner >= 0 || pending.entry) {
+      pending.captured = true;
+      canvas.setPointerCapture(event.pointerId);
+      orbit.enabled = gizmo.enabled = false;
+      consume(event);
+    }
+    pointer = pending;
+  }
+
+  function movePointer(event) {
+    showPlacement(event);
+    if (event.pointerId !== pointer?.id || !pointer.captured) return;
+    consume(event);
+    if (!pointer.dragging && Math.hypot(event.clientX - pointer.x, event.clientY - pointer.y) <= 5) return;
+    if (pointer.corner >= 0 && landPoint(event)) {
+      pointer.dragging = true;
+      land.move([snap(groundPoint.x), snap(groundPoint.z)]);
+    }
+    if (!pointer.entry || !landPoint(event)) return;
+    if (!pointer.dragging) {
+      beginTransform();
+      pointer.dragging = true;
+      document.body.dataset.editorDrag = 'true';
+    }
+    deck.classList.toggle('drop-target', overDeck(event));
+    const x = snap(groundPoint.x + pointer.offsetX);
+    const z = snap(groundPoint.z + pointer.offsetZ);
+    const boundary = kit.map.boundary;
+    if (!insideLand(boundary, x, z, 0, !boundary.points) || overDeck(event)
+      || (pointer.entry.id === 'pool' && !poolFits(boundary, x, z))) return;
+    if (pointer.entry.root.position.x === x && pointer.entry.root.position.z === z) return;
+    pointer.entry.root.position.x = x;
+    pointer.entry.root.position.z = z;
+    changed(false);
+  }
+
+  function endPointer(event, cancelled = false) {
+    const current = pointer;
+    if (!current || event.pointerId !== current.id) return;
     pointer = null;
-    if (!active || distance > 5) return;
+    const moved = Math.hypot(event.clientX - current.x, event.clientY - current.y) > 5;
+    if (current.captured) {
+      if (canvas.hasPointerCapture?.(current.id)) canvas.releasePointerCapture(current.id);
+      orbit.enabled = gizmo.enabled = active;
+      if (event.type !== 'lostpointercapture') consume(event);
+    }
+    delete document.body.dataset.editorDrag;
+    deck.classList.remove('drop-target');
+    if (current.entry && current.dragging) {
+      const over = !cancelled && overDeck(event);
+      if (cancelled || over) {
+        applyTransform(current.entry, beforeEdit);
+        beforeEdit = null;
+        if (over) storeSelection();
+        else finishLayoutChange();
+      } else changed();
+      return;
+    }
+    if (cancelled) {
+      if (current.originalCorner) land.move(current.originalCorner);
+      return;
+    }
+    if (moved) return;
     if (placement) place(event);
-    else select(pick(event));
-  }, { capture: true });
-  canvas.addEventListener('pointercancel', () => {
-    pointer = null;
+    else if (land.active && current.corner < 0 && landPoint(event)) {
+      land.add([snap(groundPoint.x), snap(groundPoint.z)], camera, canvas.getBoundingClientRect());
+    } else if (!land.active && !current.entry) select(pick(event));
+    if (!land.active && !placement) canvas.focus({ preventScroll: true });
+  }
+
+  canvas.addEventListener('pointerdown', startPointer, { capture: true });
+  canvas.addEventListener('pointermove', movePointer, { capture: true });
+  canvas.addEventListener('pointerup', (event) => endPointer(event), { capture: true });
+  canvas.addEventListener('lostpointercapture', (event) => {
+    if (event.pointerId === pointer?.id && pointer.captured) endPointer(event, true);
+  });
+  canvas.addEventListener('pointercancel', (event) => {
+    endPointer(event, true);
     if (gizmo.dragging) gizmo.pointerUp(null);
   });
+
   function toggle() {
     if (gizmo.dragging) gizmo.pointerUp(null);
+    if (pointer?.captured) endPointer({ pointerId: pointer.id, type: 'lostpointercapture' }, true);
     active = !active;
     document.body.dataset.editor = String(active);
     runtime.setView(active ? camera : null);
-    panel.hidden = !active;
+    panel.hidden = deck.hidden = !active;
     gizmo.enabled = orbit.enabled = active;
     pointer = null;
+    land.setVisible(active);
     if (active) {
+      refreshDeck();
       fit();
       canvas.focus({ preventScroll: true });
     } else {
       setPlacement();
+      land.end();
       select(null);
+      document.body.dataset.briefing = 'compact';
       document.querySelector('[data-action="KeyE"]').focus({ preventScroll: true });
     }
     onToggle(active);
@@ -460,28 +693,98 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
 
   function message(text) {
     feedback.textContent = text;
+    feedback.hidden = false;
     clearTimeout(timer);
-    timer = setTimeout(() => { feedback.textContent = ''; }, 4800);
+    timer = setTimeout(() => { feedback.hidden = true; }, 4800);
   }
 
   function refreshAffected(entry) {
-    if (entry.buildingId) refreshBuilding(entries.get(entry.buildingId));
+    const host = entries.get(entry.buildingId);
+    if (host) refreshBuilding(host);
     else if (entry.building) refreshBuilding(entry);
     else refreshEntry(entry);
+    if (entry.id === 'pool') refreshEntry(entries.get('pool-portal'));
   }
 
   function removeOptions({ items }) {
     for (const item of items) {
-      item.option.remove();
+      item.option?.remove();
       item.option = null;
     }
   }
 
-  function recordPresence(entry, placed, removal, beforeHost, afterHost) {
+  function finishLayoutChange() {
+    refreshDeck();
+    land.refresh();
+    onLayoutChange();
+  }
+
+  function refreshDeck() {
+    const list = [...parked.values()].sort((a, b) => a.entry.label.localeCompare(b.entry.label));
+    const query = deckSearch.value.trim().toLocaleLowerCase();
+    const matches = list.filter(({ entry }) => entry.label.toLocaleLowerCase().includes(query));
+    const scroll = deckList.scrollLeft;
+    deckList.replaceChildren();
+    for (const record of matches) {
+      const { entry } = record;
+      const card = document.createElement('div');
+      card.className = 'editor-card';
+      const placeButton = document.createElement('button');
+      placeButton.type = 'button';
+      placeButton.className = 'editor-place-card';
+      placeButton.textContent = entry.label;
+      if (!entry.buildingId) {
+        const { x, z } = entry.root.position;
+        const coordinates = document.createElement('span');
+        coordinates.className = 'editor-card-location';
+        coordinates.textContent = `${rounded(x)}, ${rounded(z)} m`;
+        placeButton.append(coordinates);
+      }
+      placeButton.title = entry.label;
+      placeButton.setAttribute('aria-label', `Place ${entry.label}`);
+      placeButton.setAttribute('aria-pressed', 'false');
+      placeButton.dataset.stored = entry.id;
+      placeButton.draggable = kit.canRestore(record);
+      placeButton.disabled = !placeButton.draggable;
+      if (placeButton.disabled) placeButton.title = 'Place its building first';
+      bindPlacement(placeButton, () => ({ kind: 'stored', entry }));
+      card.append(placeButton);
+      if (entry.id !== 'pool') {
+        const removeButton = document.createElement('button');
+        removeButton.type = 'button';
+        removeButton.className = 'editor-card-delete';
+        removeButton.textContent = 'Delete';
+        removeButton.setAttribute('aria-label', `Delete ${entry.label} from deck`);
+        removeButton.addEventListener('click', () => {
+          pendingDelete = record;
+          confirmDescription.textContent = `${entry.label}${entry.building ? ' and its attached doors' : ''} will be removed from the saved layout.`;
+          confirm.returnValue = 'cancel';
+          confirm.showModal();
+        });
+        card.append(removeButton);
+      }
+      deckList.append(card);
+    }
+    if (list.length && !matches.length) {
+      const noResults = document.createElement('p');
+      noResults.textContent = 'No matching stored objects.';
+      deckList.append(noResults);
+    }
+    deckCount.value = String(list.length);
+    deckList.hidden = !list.length;
+    deckSearch.hidden = !list.length;
+    if (!list.length) deckSearch.value = '';
+    deckList.scrollLeft = scroll;
+    clearButton.disabled = ![...entries.values()].some((entry) => !entry.buildingId && entry.id !== 'pool-portal');
+  }
+
+  function recordPresence(entry, placed, removal, beforeHost, afterHost, state = 'deck') {
     function apply(present, hostState) {
-      if (present) removal.restore();
+      if (present) {
+        removal.restore();
+      }
       else {
-        removal = kit.remove(entry);
+        removal = kit.takeOffMap(entry, state);
         removeOptions(removal);
       }
       if (hostState) applyTransform(entries.get(entry.buildingId), hostState);
@@ -495,6 +798,7 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
   }
 
   function stepHistory(forward) {
+    if (gizmo.dragging || pointer?.captured || confirm.open) return;
     const source = forward ? redo : undo;
     const destination = forward ? undo : redo;
     const change = source.pop();
@@ -503,27 +807,120 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
       return;
     }
     setPlacement();
+    land.end();
     change[forward ? 'redo' : 'undo']();
     destination.push(change);
-    onLayoutChange();
+    updateHistory();
+    finishLayoutChange();
     message(forward ? 'Redid the last edit.' : 'Undid the last edit.');
   }
 
-  function deleteSelection() {
-    const entry = selected;
-    const host = entries.get(entry.buildingId);
-    const before = host && captureTransform(host);
-    const removed = kit.remove(entry);
-    if (!removed) {
-      message('The pool and its portal are required for the underwater route.');
+  function storeSelection() {
+    if (!selected || selected.id === 'pool-portal') {
+      message('Store the pool to move its portal to the deck.');
       return;
     }
+    const entry = selected;
+    setPlacement();
+    const host = entries.get(entry.buildingId);
+    const before = host && captureTransform(host);
+    const removed = kit.takeOffMap(entry);
     select(null);
     removeOptions(removed);
     if (host) refreshBuilding(host);
     recordPresence(entry, false, removed, before, host && captureTransform(host));
+    finishLayoutChange();
+    message(`Stored ${entry.label}.`);
+  }
+
+  function duplicateSelection() {
+    if (kit.canDuplicate(selected)) setPlacement({ kind: 'copy', entry: selected });
+  }
+
+  function placeStored(stored, target) {
+    if (!stored || !kit.canRestore(stored)) return;
+    const { entry } = stored;
+    const host = target.entry;
+    const beforeHost = host && captureTransform(host);
+    const doorPose = entry.buildingId && captureTransform(entry);
+    stored.restore();
+    const beforePose = doorPose || captureTransform(entry);
+    refreshAffected(entry);
+    setPlacement();
+    select(entry);
+    canvas.focus({ preventScroll: true });
+    remember();
+    if (host) kit.mountDoor(entry, target);
+    else {
+      entry.root.position.x = target.position.x;
+      entry.root.position.z = target.position.z;
+    }
+    changed(false);
+    const afterPose = captureTransform(entry);
+    const afterHost = host && captureTransform(host);
+    let removal = stored;
+    record({
+      undo() {
+        applyTransform(entry, beforePose);
+        removal = kit.takeOffMap(entry);
+        removeOptions(removal);
+        if (host) applyTransform(host, beforeHost);
+        select(null);
+      },
+      redo() {
+        removal.restore();
+        if (host) applyTransform(host, afterHost);
+        applyTransform(entry, afterPose);
+      }
+    });
+    finishLayoutChange();
+    message(`${entry.label} placed.`);
+  }
+
+  function clearToDeck() {
+    if (gizmo.dragging || pointer?.captured) return;
+    setPlacement();
+    let removals;
+    function clear() {
+      removals = [];
+      for (const entry of [...entries.values()]) {
+        if (entry.buildingId || entry.id === 'pool-portal') continue;
+        const removal = kit.takeOffMap(entry);
+        removals.push(removal);
+        removeOptions(removal);
+      }
+      select(null);
+    }
+    clear();
+    deckSearch.value = '';
+    record({
+      undo() {
+        for (const removal of removals) removal.restore();
+        for (const entry of entries.values()) refreshEntry(entry);
+      },
+      redo: clear
+    });
+    finishLayoutChange();
+    fit();
+    message(`Stored ${removals.length} objects.`);
+  }
+
+  function commitBoundary(boundary) {
+    const pool = entries.get('pool');
+    if (pool && !poolFits(boundary, pool.root.position.x, pool.root.position.z)) {
+      message('Store or move the pool before drawing a boundary through it.');
+      return false;
+    }
+    const previous = kit.map.boundary;
+    kit.map.boundary = boundary;
+    record({
+      undo() { kit.map.boundary = previous; resize(); },
+      redo() { kit.map.boundary = boundary; resize(); }
+    });
     onLayoutChange();
-    message(`Removed ${entry.label}.`);
+    resize();
+    message('Land boundary applied.');
+    return true;
   }
 
   function download() {
@@ -538,6 +935,38 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
   }
 
   document.getElementById('editor-close').addEventListener('click', toggle);
+  clearButton.addEventListener('click', clearToDeck);
+  storeButton.addEventListener('click', storeSelection);
+  duplicateButton.addEventListener('click', duplicateSelection);
+  undoButton.addEventListener('click', () => stepHistory(false));
+  redoButton.addEventListener('click', () => stepHistory(true));
+  grid.addEventListener('change', () => land.refresh());
+  deckSearch.addEventListener('input', () => {
+    deckList.scrollLeft = 0;
+    refreshDeck();
+  });
+  confirm.addEventListener('close', () => {
+    const stored = pendingDelete;
+    pendingDelete = null;
+    if (confirm.returnValue !== 'delete' || !stored || !parked.has(stored.entry.id)) return;
+    setPlacement();
+    const id = stored.entry.id;
+    let removals;
+    function removeStored() {
+      removals = [...parked.values()].filter(({ entry }) => entry.id === id || entry.buildingId === id);
+      for (const removal of removals) kit.removeFromDeck(removal);
+    }
+    removeStored();
+    record({
+      undo() {
+        for (const removal of removals) removal.setState('deck');
+      },
+      redo: removeStored
+    });
+    finishLayoutChange();
+    canvas.focus({ preventScroll: true });
+    message(`Deleted ${stored.entry.label} from the deck.`);
+  });
   document.getElementById('editor-fit').addEventListener('click', fit);
   document.getElementById('editor-tilt').addEventListener('click', () => {
     const overhead = orbit.getPolarAngle() < 0.5;
@@ -595,24 +1024,33 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
   }
 
   addEventListener('keydown', (event) => {
-    if (!active || event.defaultPrevented || event.altKey) return;
+    if (!active || event.defaultPrevented || event.altKey || confirm.open) return;
     const editingText = event.target.matches?.('input, select, textarea') || event.target.isContentEditable;
     if (event.ctrlKey || event.metaKey) {
-      if (event.code !== 'KeyZ' || editingText) return;
+      if (editingText || !['KeyZ', 'KeyD'].includes(event.code)) return;
       event.preventDefault();
-      if (!event.repeat && !gizmo.dragging) stepHistory(event.shiftKey);
+      if (event.repeat || gizmo.dragging || pointer?.captured) return;
+      if (event.code === 'KeyZ') stepHistory(event.shiftKey);
+      else duplicateSelection();
       return;
     }
     if (event.code === 'Escape') {
       event.preventDefault();
-      if (placement) setPlacement();
+      if (pointer?.captured) endPointer({ pointerId: pointer.id, type: 'lostpointercapture' }, true);
+      else if (placement) setPlacement();
+      else if (land.active) land.end();
       else toggle();
+      return;
+    }
+    if (land.active && !editingText && (event.key === 'Delete' || event.key === 'Backspace')) {
+      event.preventDefault();
+      if (!event.repeat) land.deleteCorner();
       return;
     }
     if (editingText || !selected || placement || gizmo.dragging) return;
     if (event.key === 'Delete' || event.key === 'Backspace') {
       event.preventDefault();
-      if (!event.repeat) deleteSelection();
+      if (!event.repeat) storeSelection();
       return;
     }
     if (selected.buildingId) return;
