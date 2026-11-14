@@ -1,7 +1,10 @@
 import * as THREE from 'three';
 import { addLocalCollider, createCampusKit, floor, standard } from './buildingFactory.js';
-import { batchStaticMeshes, box, canvasTexture, groupAt, seededRandom } from './sceneKit.js';
-import { createRuntime, makeMinimap, movementAxes, setLocation, setProximity, updateCoordinates } from './sceneRuntime.js';
+import { createCampusEditor } from './campusEditor.js';
+import { renderCampusHero } from './campusHero.js';
+import { createPoolOpening, movePoolDependencies, readCampusLayout } from './campusLayout.js';
+import { batchStaticMeshes, box, canvasTexture, createSceneryBatches, groupAt, seededRandom } from './sceneKit.js';
+import { createRuntime, makeMinimap, movementAxes, setLocation, updateCoordinates } from './sceneRuntime.js';
 import { buildGateGarden } from './zoneA_GateGarden.js';
 import { buildCSEAdmission } from './zoneB_CSEAdmission.js';
 import { buildGroundPool } from './zoneC_GroundPool.js';
@@ -9,25 +12,17 @@ import { createWeather } from './weatherAndLighting.js';
 
 const playerRadius = 0.29;
 const walkingSpeed = 5.15;
+const walkingBoost = 1.65;
 const headingNames = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
 
 function buildCampusSite(scene, kit) {
   const { map, materials: m } = kit;
   const bounds = map.boundary;
-  const pool = map.pool;
-  const poolMinX = pool.x - pool.width / 2;
-  const poolMaxX = pool.x + pool.width / 2;
-  const poolMinZ = pool.z - pool.depth / 2;
-  const poolMaxZ = pool.z + pool.depth / 2;
   const site = groupAt(scene, 'Campus grade, streets and perimeter', [0, 0, 0]);
   function slab(mat, minX, maxX, minZ, maxZ, y, size = 4.4) {
     floor(site, mat, (minX + maxX) / 2, (minZ + maxZ) / 2, maxX - minX, maxZ - minZ, y, size);
   }
-  // Leave an actual opening in the grade so the camera can go below the pool surface.
-  slab(m.paving, bounds.minX, poolMinX, bounds.minZ, bounds.maxZ, 0);
-  slab(m.paving, poolMaxX, bounds.maxX, bounds.minZ, bounds.maxZ, 0);
-  slab(m.paving, poolMinX, poolMaxX, bounds.minZ, poolMinZ, 0);
-  slab(m.paving, poolMinX, poolMaxX, poolMaxZ, bounds.maxZ, 0);
+  slab(m.paving, bounds.minX, bounds.maxX, bounds.minZ, bounds.maxZ, 0);
   slab(m.paving, bounds.minX, bounds.maxX, bounds.maxZ, 35.5, 0);
   slab(m.lane, -145, 145, 35.5, 155, -0.018, 6.3);
   const cityGround = standard('#9eaa8c');
@@ -35,7 +30,9 @@ function buildCampusSite(scene, kit) {
   slab(cityGround, bounds.maxX, 145, -165, 35.5, -0.03);
   slab(cityGround, bounds.minX, bounds.maxX, -165, bounds.minZ, -0.03);
   for (const [index, path] of map.walkways.entries()) {
-    floor(site, m.lane, path.x, path.z, path.width, path.depth, 0.006 + index * 0.00043, 5.9);
+    const root = groupAt(site, `Walkway ${index + 1}`, [path.x, 0, path.z]);
+    kit.layout.add(`walkway:${index + 1}`, root, path, { surface: true });
+    floor(root, m.lane, 0, 0, path.width, path.depth, 0.006 + index * 0.00043, 5.9);
   }
   floor(site, m.lane, map.gate.x, 33.7, map.gate.opening - 0.1, 3.6, 0.008);
   for (let index = -12; index <= 12; index++) {
@@ -46,8 +43,8 @@ function buildCampusSite(scene, kit) {
     floor(site, m.deck, x + side * 17.7, 34.65, 35.45, 1.35, 0.014);
   }
 
-  function wall(x, z, length, yaw, street = false) {
-    const root = groupAt(site, 'Perimeter wall', [x, 0, z], yaw);
+  function wall(side, x, z, length, yaw, street = false) {
+    const root = kit.prop(site, 'wall', `Perimeter wall · ${side}`, x, z, yaw);
     const height = street ? 2.83 : 2.42;
     box(root, m.library, [length, height, 0.38], [0, height / 2, 0]);
     box(root, m.brick, [length, 0.38, 0.43], [0, 0.19, 0]);
@@ -62,13 +59,13 @@ function buildCampusSite(scene, kit) {
   }
   const centerX = (bounds.minX + bounds.maxX) / 2;
   const centerZ = (bounds.minZ + bounds.maxZ) / 2;
-  wall(centerX, bounds.minZ, bounds.maxX - bounds.minX, 0);
-  wall(bounds.minX, centerZ, bounds.maxZ - bounds.minZ, Math.PI / 2);
-  wall(bounds.maxX, centerZ, bounds.maxZ - bounds.minZ, Math.PI / 2);
+  wall('North', centerX, bounds.minZ, bounds.maxX - bounds.minX, 0);
+  wall('West', bounds.minX, centerZ, bounds.maxZ - bounds.minZ, Math.PI / 2);
+  wall('East', bounds.maxX, centerZ, bounds.maxZ - bounds.minZ, Math.PI / 2);
   const left = map.gate.x - map.gate.opening / 2 - 0.56;
   const right = map.gate.x + map.gate.opening / 2 + 0.56;
-  wall((bounds.minX + left) / 2, bounds.maxZ, left - bounds.minX, 0, true);
-  wall((right + bounds.maxX) / 2, bounds.maxZ, bounds.maxX - right, 0, true);
+  wall('Street west', (bounds.minX + left) / 2, bounds.maxZ, left - bounds.minX, 0, true);
+  wall('Street east', (right + bounds.maxX) / 2, bounds.maxZ, bounds.maxX - right, 0, true);
   batchStaticMeshes(site);
 
   // A subdued surrounding skyline frames the campus boundary in the street-level views.
@@ -122,19 +119,43 @@ function walkWithCollision(position, dx, dz, colliders, bounds) {
 export async function startCampus() {
   const response = await fetch(new URL('../CAMPUS_MAP.json', import.meta.url));
   if (!response.ok) throw new Error(`Campus map request failed (${response.status})`);
-  const map = await response.json();
-  const runtime = createRuntime({ fov: 63, far: 220, shadows: true, resumeLabel: 'Resume walk' });
+  const { map, save } = readCampusLayout(await response.text());
+  const runtime = createRuntime({ fov: 63, far: 220, shadows: true, shiftStrafe: true, resumeLabel: 'Resume walk' });
   const { scene, camera } = runtime;
   const kit = createCampusKit(map);
   buildCampusSite(scene, kit);
   buildGateGarden(scene, kit);
   buildCSEAdmission(scene, kit);
+  if (new URLSearchParams(location.search).get('arrival') !== 'pool') {
+    const hero = document.getElementById('campus-hero');
+    try {
+      renderCampusHero(kit.layout.objects.get('cse').root, hero);
+    } catch (error) {
+      // The tour can still open if the browser cannot allocate a preview context.
+      hero.hidden = true;
+      console.warn('The CSE landing preview could not render.', error);
+    }
+  }
   const ground = buildGroundPool(scene, kit);
   const weather = createWeather(runtime, kit);
-  const plotMap = makeMinimap(map);
+  kit.buildAdded(scene);
+  kit.applyRemovals();
+  const scenery = createSceneryBatches(scene, kit.layout.objects);
+  scenery.setEditing(false);
+  const pool = map.pool;
+  const opening = createPoolOpening(pool, ground.poolRoot);
+  scene.traverse((object) => {
+    if (!object.userData.grade) return;
+    for (let parent = object.parent; parent; parent = parent.parent) {
+      if (parent === ground.poolRoot) return;
+    }
+    object.material = opening.terrain(object.material);
+  });
+  let plotMap = makeMinimap(map);
   const forward = new THREE.Vector3();
   const right = new THREE.Vector3();
   const movement = new THREE.Vector3();
+  const poolLocal = new THREE.Vector3();
   const checkpoints = [...document.querySelectorAll('.checkpoints button')];
   const bearing = document.getElementById('bearing');
   const eyeHeight = map.coordinateSystem.eyeHeight;
@@ -162,263 +183,118 @@ export async function startCampus() {
     bearing.textContent = `${cardinal} · ${String(Math.round(heading) % 360).padStart(3, '0')}°`;
     updateCoordinates(camera.position);
     plotMap(camera.position, heading, lastArea?.stop);
-    const nearPool = Math.abs(x - map.pool.x) < map.pool.width / 2 + 2
-      && Math.abs(z - map.pool.z) < map.pool.depth / 2 + 4;
-    setProximity(nearPool ? camera.position.y < map.pool.waterY ? 'Swim toward the glowing ring' : 'Walk down the pool steps or dive' : '');
+  }
+
+  function walkableNear(x, z) {
+    const bounds = map.boundary;
+    x = THREE.MathUtils.clamp(x, bounds.minX + playerRadius, bounds.maxX - playerRadius);
+    z = THREE.MathUtils.clamp(z, bounds.minZ + playerRadius, bounds.streetZ - playerRadius);
+    if (!blocked(x, z, kit.colliders, bounds)) return [x, z];
+    for (let radius = 1; radius < 160; radius++) {
+      for (let index = 0; index < 24; index++) {
+        const angle = index * Math.PI / 12;
+        const px = x + radius * Math.cos(angle);
+        const pz = z + radius * Math.sin(angle);
+        if (!blocked(px, pz, kit.colliders, bounds)) return [px, pz];
+      }
+    }
+    return null;
   }
 
   function teleport(stop) {
-    camera.position.set(stop.position[0], eyeHeight, stop.position[2]);
+    const position = walkableNear(stop.position[0], stop.position[2]);
+    if (!position) {
+      runtime.announce('This layout blocks the checkpoint. Move objects to clear a path.');
+      return;
+    }
+    camera.position.set(position[0], eyeHeight, position[1]);
     camera.lookAt(...stop.lookAt);
     updateHud();
-  }
-
-  for (const stop of map.stops) {
-    if (blocked(stop.position[0], stop.position[2], kit.colliders, map.boundary)) {
-      throw new Error(`Checkpoint ${stop.key} intersects a campus collider`);
-    }
   }
   const fromOcean = new URLSearchParams(location.search).get('arrival') === 'pool';
   if (fromOcean) document.body.dataset.briefing = 'compact';
   teleport(map.stops[fromOcean ? 3 : 0]);
   addEventListener('pageshow', (event) => {
-    if (event.persisted && camera.position.y < map.pool.waterY) teleport(map.stops[3]);
+    if (event.persisted && opening.local(camera.position, poolLocal).y < pool.waterY) teleport(map.stops[3]);
   });
 
-  // Layout Editor Mode (Task 2)
-  let isEditorActive = false;
-  let selectedLandmark = null;
-  let boxHelper = null;
-  const raycaster = new THREE.Raycaster();
-  const mouse = new THREE.Vector2();
-  const editorEl = document.getElementById('layout-editor');
-  const editorCloseBtn = document.getElementById('editor-close');
-  const editorNameEl = document.getElementById('editor-landmark-name');
-  const editorIdEl = document.getElementById('editor-landmark-id');
-  const editorCoordX = document.getElementById('editor-coord-x');
-  const editorCoordZ = document.getElementById('editor-coord-z');
-  const editorYaw = document.getElementById('editor-yaw');
-  const editorCopyBtn = document.getElementById('editor-copy-json');
-  const editorDownloadBtn = document.getElementById('editor-download-json');
-  const editorFeedback = document.getElementById('editor-feedback');
+  function saveLayout() {
+    opening.sync();
+    scenery.invalidate();
+    runtime.renderer.shadowMap.needsUpdate = true;
+    plotMap = makeMinimap(map);
+    save();
+  }
 
-  function updateEditorPanel() {
-    if (!editorEl) return;
-    if (!selectedLandmark) {
-      editorNameEl.textContent = 'No building selected';
-      editorIdEl.textContent = 'Click a building in 3D';
-      editorCoordX.value = '—';
-      editorCoordZ.value = '—';
-      editorYaw.value = '—';
+  const editor = createCampusEditor(runtime, kit, (entry, before, commit) => {
+    if (entry.buildingId) {
+      if (commit) saveLayout();
       return;
     }
-    const { id, root, spec } = selectedLandmark;
-    editorNameEl.textContent = spec.label || id;
-    editorIdEl.textContent = id;
-    editorCoordX.value = root.position.x.toFixed(1);
-    editorCoordZ.value = root.position.z.toFixed(1);
-    const deg = (THREE.MathUtils.radToDeg(root.rotation.y) % 360 + 360) % 360;
-    editorYaw.value = `${deg.toFixed(0)}°`;
-  }
-
-  function deselectLandmark() {
-    if (boxHelper) {
-      scene.remove(boxHelper);
-      boxHelper.dispose();
-      boxHelper = null;
+    kit.layout.write(entry);
+    kit.refreshColliders(entry.root);
+    if (entry.id === 'pool') {
+      opening.sync();
+      if (!before.equals(entry.root.matrixWorld)) {
+        movePoolDependencies(map, before, entry.root.matrixWorld, ground.portal);
+        kit.layout.write(kit.layout.objects.get('pool-portal'));
+        editor.refresh('pool-portal');
+      }
     }
-    selectedLandmark = null;
-    updateEditorPanel();
-  }
-
-  function selectLandmark(id) {
-    const lm = kit.landmarks.get(id);
-    if (!lm) return;
-    selectedLandmark = lm;
-    if (boxHelper) {
-      scene.remove(boxHelper);
-      boxHelper.dispose();
+    if (entry.id === 'pool-portal') pool.ring = ground.portal.position.toArray();
+    if (commit) saveLayout();
+  }, (editing) => {
+    scenery.setEditing(editing);
+    if (editing) return;
+    const { x, z } = camera.position;
+    if (blocked(x, z, kit.colliders, map.boundary)) {
+      const safe = walkableNear(x, z);
+      if (safe) camera.position.set(safe[0], eyeHeight, safe[1]);
+      else runtime.announce('This layout blocks the campus. Open the editor to clear a path.');
     }
-    boxHelper = new THREE.BoxHelper(lm.root, 0xd6ef9e);
-    boxHelper.material.depthTest = false;
-    boxHelper.material.transparent = true;
-    boxHelper.material.opacity = 0.95;
-    boxHelper.renderOrder = 999;
-    scene.add(boxHelper);
-    updateEditorPanel();
-  }
-
-  function moveSelected(dx, dz) {
-    if (!selectedLandmark) return;
-    const { root, spec } = selectedLandmark;
-    root.position.x += dx;
-    root.position.z += dz;
-    spec.x = Number(root.position.x.toFixed(2));
-    spec.z = Number(root.position.z.toFixed(2));
-    kit.updateCollidersForGroup(kit.colliders, root);
-    if (boxHelper) boxHelper.update();
-    updateEditorPanel();
     updateHud();
-  }
-
-  function rotateSelected(dyaw) {
-    if (!selectedLandmark) return;
-    const { root, spec } = selectedLandmark;
-    root.rotation.y += dyaw;
-    spec.yaw = Number(THREE.MathUtils.radToDeg(root.rotation.y).toFixed(1));
-    kit.updateCollidersForGroup(kit.colliders, root);
-    if (boxHelper) boxHelper.update();
-    updateEditorPanel();
-    updateHud();
-  }
-
-  function toggleEditor() {
-    isEditorActive = !isEditorActive;
-    if (isEditorActive) {
-      if (runtime.controls.isLocked) runtime.controls.unlock();
-      if (editorEl) editorEl.hidden = false;
-      document.body.dataset.editor = 'true';
-      runtime.announce('Layout Editor active. Click any building to move or rotate.');
-      updateEditorPanel();
-    } else {
-      if (editorEl) editorEl.hidden = true;
-      document.body.dataset.editor = 'false';
-      deselectLandmark();
-    }
-  }
-
-  function exportUpdatedMapJson() {
-    for (const [id, lm] of kit.landmarks.entries()) {
-      if (map.buildings[id]) {
-        map.buildings[id].x = Number(lm.root.position.x.toFixed(2));
-        map.buildings[id].z = Number(lm.root.position.z.toFixed(2));
-        map.buildings[id].yaw = Number(THREE.MathUtils.radToDeg(lm.root.rotation.y).toFixed(1));
-      }
-    }
-    return JSON.stringify(map, null, 2);
-  }
-
-  function showFeedback(msg) {
-    if (!editorFeedback) return;
-    editorFeedback.textContent = msg;
-    editorFeedback.hidden = false;
-    setTimeout(() => { editorFeedback.hidden = true; }, 3500);
-  }
-
-  function downloadMapJson() {
-    const json = exportUpdatedMapJson();
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'CAMPUS_MAP.json';
-    a.click();
-    URL.revokeObjectURL(url);
-    showFeedback('✓ Downloaded CAMPUS_MAP.json!');
-  }
-
-  if (editorEl) {
-    editorCloseBtn?.addEventListener('click', toggleEditor);
-    editorCopyBtn?.addEventListener('click', async () => {
-      const json = exportUpdatedMapJson();
-      try {
-        await navigator.clipboard.writeText(json);
-        showFeedback('✓ Copied updated CAMPUS_MAP.json!');
-      } catch {
-        downloadMapJson();
-      }
-    });
-    editorDownloadBtn?.addEventListener('click', downloadMapJson);
-
-    for (const btn of editorEl.querySelectorAll('[data-edit]')) {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (!selectedLandmark) return;
-        const action = btn.dataset.edit;
-        const step = 1.0;
-        if (action === 'x-minus') moveSelected(-step, 0);
-        else if (action === 'x-plus') moveSelected(step, 0);
-        else if (action === 'z-minus') moveSelected(0, -step);
-        else if (action === 'z-plus') moveSelected(0, step);
-        else if (action === 'rot-ccw') rotateSelected(-Math.PI / 12);
-        else if (action === 'rot-cw') rotateSelected(Math.PI / 12);
-      });
-    }
-  }
-
-  const canvas = runtime.renderer.domElement;
-  canvas.addEventListener('pointerdown', (event) => {
-    if (!isEditorActive || event.button !== 0) return;
-    const rect = canvas.getBoundingClientRect();
-    mouse.set(
-      ((event.clientX - rect.left) / rect.width) * 2 - 1,
-      -((event.clientY - rect.top) / rect.height) * 2 + 1
-    );
-    raycaster.setFromCamera(mouse, camera);
-    const hits = raycaster.intersectObjects(scene.children, true);
-    for (const hit of hits) {
-      let cur = hit.object;
-      while (cur && cur !== scene) {
-        if (cur.userData?.landmarkId) {
-          selectLandmark(cur.userData.landmarkId);
-          return;
-        }
-        cur = cur.parent;
-      }
-    }
-  });
-
-  window.addEventListener('keydown', (event) => {
-    if (event.code === 'KeyE' && !event.ctrlKey && !event.altKey && !event.metaKey) {
-      toggleEditor();
-      event.preventDefault();
-      event.stopPropagation();
-      return;
-    }
-    if (isEditorActive && selectedLandmark) {
-      const step = event.shiftKey ? 5.0 : 1.0;
-      if (event.code === 'ArrowLeft') { moveSelected(-step, 0); event.preventDefault(); event.stopPropagation(); return; }
-      if (event.code === 'ArrowRight') { moveSelected(step, 0); event.preventDefault(); event.stopPropagation(); return; }
-      if (event.code === 'ArrowUp') { moveSelected(0, -step); event.preventDefault(); event.stopPropagation(); return; }
-      if (event.code === 'ArrowDown') { moveSelected(0, step); event.preventDefault(); event.stopPropagation(); return; }
-      if (event.code === 'KeyQ') { rotateSelected(-Math.PI / 12); event.preventDefault(); event.stopPropagation(); return; }
-      if (event.code === 'KeyT') { rotateSelected(Math.PI / 12); event.preventDefault(); event.stopPropagation(); return; }
-    }
-  }, { capture: true });
+  }, saveLayout);
 
   const stopActions = Object.fromEntries(map.stops.map((stop) => [`Digit${stop.key}`, () => {
     document.body.dataset.briefing = 'compact';
     teleport(stop);
   }]));
-  runtime.ready({ ...weather.actions, ...stopActions, KeyP: dive, KeyE: toggleEditor });
+  runtime.ready({ ...weather.actions, ...stopActions, KeyP: dive, KeyE: editor.toggle });
 
-  runtime.loop((dt, time) => {
+  runtime.loop((dt, time, view) => {
+    editor.update();
     if (runtime.active && !runtime.leaving) {
       const [x, z] = movementAxes(runtime);
       if (x || z) {
+        const boosted = runtime.down('ShiftLeft', 'ShiftRight');
+        const speed = boosted ? walkingSpeed * walkingBoost : walkingSpeed;
         runtime.controls.getDirection(forward);
         forward.y = 0;
         forward.normalize();
         right.set(-forward.z, 0, forward.x);
-        movement.copy(forward).multiplyScalar(z).addScaledVector(right, x).normalize().multiplyScalar(walkingSpeed * dt);
+        movement.copy(forward).multiplyScalar(z).addScaledVector(right, x).normalize().multiplyScalar(speed * dt);
         walkWithCollision(camera.position, movement.x, movement.z, kit.colliders, map.boundary);
       }
-      const pool = map.pool;
       const pos = camera.position;
-      const inset = pool.z + pool.depth / 2 - pos.z;
-      const inside = Math.abs(pos.x - pool.x) < pool.width / 2 && inset > 0 && inset < pool.depth;
+      opening.local(pos, poolLocal);
+      const inset = pool.depth / 2 - poolLocal.z;
+      const inside = Math.abs(poolLocal.x) < pool.width / 2 && inset > 0 && inset < pool.depth;
       if (inside) {
-        const onSteps = Math.abs(pos.x - pool.x) < 1.82 && inset < 2.6;
+        const onSteps = Math.abs(poolLocal.x) < 1.82 && inset < 2.6;
         const stepTop = -0.28 - Math.floor(inset / 0.52) * 0.37;
-        const target = onSteps ? Math.max(-1.53, stepTop + 0.54) : -1.53;
+        const scaleY = ground.poolRoot.scale.y;
+        const basinDepth = Math.max((pool.bottomY + 0.15) * scaleY,
+          Math.min(-1.53 * scaleY, ground.portal.position.y + pool.triggerRadius / 2));
+        const target = onSteps ? Math.max(basinDepth, (stepTop + 0.54) * scaleY) : basinDepth;
         pos.y = THREE.MathUtils.damp(pos.y, target, 6.3, dt);
-        if (pos.y < pool.waterY && pos.distanceTo(ground.portal.position) <= pool.triggerRadius) dive();
+        if (pos.y < pool.waterY * scaleY && pos.distanceTo(ground.portal.position) <= pool.triggerRadius) dive();
       } else {
         pos.y = eyeHeight;
       }
     }
-    ground.update(time, weather.update(dt));
-    if (time >= nextHud) {
+    ground.update(time, weather.update(dt, view, editor.active));
+    opening.syncMaterials();
+    if (!editor.active && time >= nextHud) {
       updateHud();
       nextHud = time + 0.095;
     }

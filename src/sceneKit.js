@@ -59,53 +59,118 @@ export function groupAt(parent, name, position, yaw = 0) {
   return group;
 }
 
-// Batch repeated static parts within each zone while retaining landmark and animated hierarchies.
+// Keep batches within an editable object or a spatial cell so offscreen batches can be culled.
 export function batchStaticMeshes(root) {
   root.updateWorldMatrix(true, true);
-  const landmarkRoots = [];
-  root.traverse((obj) => {
-    if (obj !== root && obj.userData?.isLandmark) landmarkRoots.push(obj);
-  });
-
-  function batchTarget(target, predicate) {
-    target.updateWorldMatrix(true, true);
-    const byAppearance = new Map();
-    target.traverse((mesh) => {
-      if (!mesh.isMesh || mesh.isInstancedMesh || Array.isArray(mesh.material) || mesh.material.transparent) return;
-      if (predicate && !predicate(mesh)) return;
-      const key = [mesh.geometry.id, mesh.material.id, mesh.castShadow, mesh.receiveShadow].join('/');
-      if (!byAppearance.has(key)) byAppearance.set(key, []);
-      byAppearance.get(key).push(mesh);
-    });
+  const targets = new Map();
+  const position = new THREE.Vector3();
+  function collect(node, owner) {
+    if (node.userData.layoutId) owner = node;
+    if (node.isMesh && !node.isInstancedMesh && !Array.isArray(node.material) && !node.material.transparent) {
+      const target = owner ?? root;
+      if (!targets.has(target)) targets.set(target, new Map());
+      const batches = targets.get(target);
+      position.setFromMatrixPosition(node.matrixWorld);
+      const cell = owner ? '' : `/${Math.floor(position.x / 24)}/${Math.floor(position.y / 24)}/${Math.floor(position.z / 24)}`;
+      const key = [node.geometry.id, node.material.id, node.castShadow, node.receiveShadow, Boolean(node.userData.grade)].join('/') + cell;
+      if (!batches.has(key)) batches.set(key, []);
+      batches.get(key).push(node);
+    }
+    for (const child of node.children) collect(child, owner);
+  }
+  collect(root);
+  const local = new THREE.Matrix4();
+  for (const [target, batches] of targets) {
     const targetInverse = target.matrixWorld.clone().invert();
-    const local = new THREE.Matrix4();
-    for (const meshes of byAppearance.values()) {
+    for (const meshes of batches.values()) {
       if (meshes.length < 3) continue;
       const first = meshes[0];
       const batch = new THREE.InstancedMesh(first.geometry, first.material, meshes.length);
       batch.castShadow = first.castShadow;
       batch.receiveShadow = first.receiveShadow;
+      batch.userData.grade = first.userData.grade;
       for (const [index, mesh] of meshes.entries()) {
         batch.setMatrixAt(index, local.multiplyMatrices(targetInverse, mesh.matrixWorld));
         mesh.removeFromParent();
       }
       batch.computeBoundingSphere();
+      batch.computeBoundingBox();
+      batch.matrixAutoUpdate = false;
       target.add(batch);
     }
   }
 
-  for (const landmark of landmarkRoots) {
-    batchTarget(landmark);
-  }
-
-  batchTarget(root, (mesh) => {
-    let cur = mesh.parent;
-    while (cur && cur !== root) {
-      if (cur.userData?.isLandmark) return false;
-      cur = cur.parent;
-    }
-    return true;
+  root.traverse((node) => {
+    if (node === root || node.userData.layoutId) return;
+    node.updateMatrix();
+    node.matrixAutoUpdate = false;
   });
+}
+
+export function cameraFrustum(camera, frustum, projectionView) {
+  camera.updateMatrixWorld();
+  projectionView.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+  return frustum.setFromProjectionMatrix(projectionView);
+}
+
+export function createSceneryBatches(scene, entries) {
+  const scenery = groupAt(scene, 'Walking view scenery batches', [0, 0, 0]);
+  const matrix = new THREE.Matrix4();
+  const world = new THREE.Matrix4();
+  let stale = true;
+  function rebuild() {
+    const batches = new Map();
+    const position = new THREE.Vector3();
+    for (const { root, elevation, buildingId } of entries.values()) {
+      if (elevation || buildingId) continue;
+      root.updateWorldMatrix(true, true);
+      position.setFromMatrixPosition(root.matrixWorld);
+      const cell = `${Math.floor((position.x + 22) / 44)}/${Math.floor((position.z + 22) / 44)}`;
+      root.traverse((mesh) => {
+        if (!mesh.isMesh || mesh.userData.grade || mesh.material.transparent || Array.isArray(mesh.material)) return;
+        mesh.visible = true;
+        const key = [mesh.geometry.id, mesh.material.id, mesh.castShadow, mesh.receiveShadow, cell].join('/');
+        if (!batches.has(key)) batches.set(key, []);
+        batches.get(key).push(mesh);
+      });
+    }
+    for (const batch of scenery.children) batch.dispose();
+    scenery.clear();
+    for (const meshes of batches.values()) {
+      if (meshes.length < 2) continue;
+      const first = meshes[0];
+      const count = meshes.reduce((total, mesh) => total + (mesh.isInstancedMesh ? mesh.count : 1), 0);
+      const batch = new THREE.InstancedMesh(first.geometry, first.material, count);
+      batch.castShadow = first.castShadow;
+      batch.receiveShadow = first.receiveShadow;
+      batch.matrixAutoUpdate = false;
+      batch.userData.sources = meshes;
+      let index = 0;
+      for (const mesh of meshes) {
+        if (mesh.isInstancedMesh) {
+          for (let i = 0; i < mesh.count; i++) {
+            mesh.getMatrixAt(i, matrix);
+            batch.setMatrixAt(index++, world.multiplyMatrices(mesh.matrixWorld, matrix));
+          }
+        } else {
+          batch.setMatrixAt(index++, mesh.matrixWorld);
+        }
+      }
+      batch.computeBoundingSphere();
+      scenery.add(batch);
+    }
+    stale = false;
+  }
+  return {
+    invalidate() { stale = true; },
+    setEditing(editing) {
+      if (!editing && stale) rebuild();
+      scenery.visible = !editing;
+      for (const batch of scenery.children) {
+        for (const mesh of batch.userData.sources) mesh.visible = editing;
+      }
+    }
+  };
 }
 
 let glowMap;
@@ -129,17 +194,18 @@ export function glowSprite(color, size, opacity) {
 
 export function createPortal(parent, { name, position, tilt = 0, radius = 1.52 }) {
   const root = groupAt(parent, name, position);
-  root.rotation.x = tilt;
+  const aperture = groupAt(root, 'Portal aperture', [0, 0, 0]);
+  aperture.rotation.x = tilt;
   const housing = new THREE.MeshStandardMaterial({ color: 0x173275, metalness: 0.58, roughness: 0.31 });
   const lit = new THREE.MeshStandardMaterial({
     color: 0x127eff, emissive: 0x164fff, emissiveIntensity: 3.4, metalness: 0.36, roughness: 0.25
   });
   const core = new THREE.MeshBasicMaterial({ color: 0x82fbff, toneMapped: false });
-  part(root, new THREE.TorusGeometry(radius + 0.10, 0.16, 12, 72), housing, [0, 0, 0]);
-  part(root, new THREE.TorusGeometry(radius, 0.105, 12, 72), lit, [0, 0, 0.04]);
-  part(root, new THREE.TorusGeometry(radius - 0.135, 0.024, 8, 72), core, [0, 0, 0.095]);
+  part(aperture, new THREE.TorusGeometry(radius + 0.10, 0.16, 12, 72), housing, [0, 0, 0]);
+  part(aperture, new THREE.TorusGeometry(radius, 0.105, 12, 72), lit, [0, 0, 0.04]);
+  part(aperture, new THREE.TorusGeometry(radius - 0.135, 0.024, 8, 72), core, [0, 0, 0.095]);
 
-  const glyphs = groupAt(root, 'Rotating aperture marks', [0, 0, 0.06]);
+  const glyphs = groupAt(aperture, 'Rotating aperture marks', [0, 0, 0.06]);
   for (let index = 0; index < 24; index++) {
     const angle = index * Math.PI / 12;
     const track = radius + 0.39;
@@ -160,17 +226,17 @@ export function createPortal(parent, { name, position, tilt = 0, radius = 1.52 }
     context.fillStyle = gradient;
     context.fillRect(0, 0, width, width);
   });
-  const field = part(root, unitPlane, new THREE.MeshBasicMaterial({
+  const field = part(aperture, unitPlane, new THREE.MeshBasicMaterial({
     map: fieldMap, opacity: 0.9, transparent: true, depthWrite: false, side: THREE.DoubleSide,
     blending: THREE.AdditiveBlending, toneMapped: false
   }), [0, 0, 0.12], [radius * 3.03, radius * 3.03, 1]);
   field.castShadow = false;
   const light = new THREE.PointLight(0x39cbff, 25, 12, 2);
   light.position.z = 0.55;
-  root.add(light);
+  aperture.add(light);
 
   return {
-    position: root.position,
+    root, position: root.position,
     update(time) {
       const pulse = 0.5 + 0.5 * Math.sin(3.1 * time);
       lit.emissiveIntensity = 2.7 + 1.8 * pulse;

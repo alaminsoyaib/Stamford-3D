@@ -3,9 +3,9 @@ import { standard } from './buildingFactory.js';
 import { batchStaticMeshes, box, cylinder, groupAt, rod, seededRandom } from './sceneKit.js';
 
 const seasons = [
-  { label: 'Summer', fog: 0.0062, leaves: ['#45663b', '#66834a', '#7d9654', '#547943'], haze: '#cbdad0' },
-  { label: 'Autumn', fog: 0.0105, leaves: ['#aa6134', '#bd8039', '#d6a254', '#986042'], haze: '#e2cbb2' },
-  { label: 'Winter Fog', fog: 0.027, leaves: ['#53634d', '#64725d', '#859075', '#596c5b'], haze: '#c7d5d7' }
+  { fog: 0.0062, leaves: ['#45663b', '#66834a', '#7d9654', '#547943'], haze: '#cbdad0' },
+  { fog: 0.0105, leaves: ['#aa6134', '#bd8039', '#d6a254', '#986042'], haze: '#e2cbb2' },
+  { fog: 0.027, leaves: ['#53634d', '#64725d', '#859075', '#596c5b'], haze: '#c7d5d7' }
 ];
 const storageKey = 'stamford-campus-weather-v1';
 const sunDirection = new THREE.Vector3(-0.58, 0.77, 0.51).normalize();
@@ -129,7 +129,8 @@ function createRain(scene, renderer) {
   };
 }
 
-function createLamps(scene, materials) {
+function createLamps(scene, kit) {
+  const { materials } = kit;
   const lamps = groupAt(scene, 'Warm campus streetlamps', [0, 0, 0]);
   const bulb = standard('#f9e4bb', { emissive: '#ffc36e', emissiveIntensity: 0 });
   const lights = [];
@@ -138,7 +139,7 @@ function createLamps(scene, materials) {
     [37.9, -13.5, Math.PI], [33.8, -37.7, 0], [14.6, -34.7, Math.PI],
     [-14.1, -47.3, 0], [12.9, -54.2, Math.PI], [3.0, -70.4, 0]
   ]) {
-    const root = groupAt(lamps, 'Streetlamp', [x, 0, z], yaw);
+    const root = kit.prop(lamps, 'lamp', 'Streetlamp', x, z, yaw);
     cylinder(root, materials.steel, 0.105, 4.2, [0, 2.1, 0]);
     cylinder(root, materials.black, 0.182, 0.47, [0, 0.235, 0]);
     rod(root, materials.steel, [0, 3.94, 0], [0.66, 4.18, 0], 0.06);
@@ -157,7 +158,7 @@ export function createWeather(runtime, kit) {
   const { scene, camera, renderer } = runtime;
   const { materials, foliage, windowMaterials } = kit;
   const sky = createSky(scene);
-  const lamps = createLamps(scene, materials);
+  const lamps = createLamps(scene, kit);
   const rain = createRain(scene, renderer);
   scene.fog = new THREE.FogExp2(seasons[0].haze, seasons[0].fog);
   scene.background = new THREE.Color(seasons[0].haze);
@@ -198,14 +199,8 @@ export function createWeather(runtime, kit) {
   const ground = [materials.paving, materials.lane, materials.deck].map((material) => [material, material.color.clone()]);
   const anchor = new THREE.Vector3(Infinity, 0, Infinity);
 
-  function showState() {
+  function applyPreferences() {
     const season = seasons[state.season];
-    document.getElementById('time-state').textContent = state.night ? 'Night' : 'Daylight';
-    document.getElementById('weather-state').textContent = state.rain ? 'Rain' : 'Clear';
-    document.getElementById('season-state').textContent = season.label;
-    document.querySelector('[data-action="KeyN"]').setAttribute('aria-pressed', String(state.night));
-    document.querySelector('[data-action="KeyR"]').setAttribute('aria-pressed', String(state.rain));
-    document.querySelector('[data-action="KeyV"]').setAttribute('aria-label', `Cycle seasons. Current season ${season.label}`);
     hazeTarget.set(season.haze);
     for (const [index, target] of leafTargets.entries()) target.set(season.leaves[index]);
     try {
@@ -214,24 +209,25 @@ export function createWeather(runtime, kit) {
       // Preferences are kept in memory for the current visit.
     }
   }
-  showState();
+  applyPreferences();
 
   return {
     actions: {
-      KeyN() { state.night = !state.night; showState(); },
-      KeyR() { state.rain = !state.rain; showState(); },
-      KeyV() { state.season = (state.season + 1) % seasons.length; showState(); }
+      KeyN() { state.night = !state.night; applyPreferences(); },
+      KeyR() { state.rain = !state.rain; applyPreferences(); },
+      KeyV() { state.season = (state.season + 1) % seasons.length; applyPreferences(); }
     },
-    update(dt) {
+    update(dt, view = camera, overhead = false) {
       const blend = 1 - Math.exp(-dt * 2.75);
       night += (Number(state.night) - night) * blend;
       wet += (Number(state.rain) - wet) * blend;
       hazeDensity += (seasons[state.season].fog - hazeDensity) * blend;
       currentHaze.lerp(hazeTarget, blend);
       scene.fog.color.copy(currentHaze).lerp(overcast, wet * 0.75).lerp(nightFog, night * 0.96);
-      scene.fog.density = hazeDensity + wet * 0.008 + night * 0.003;
+      scene.fog.density = overhead ? 0 : hazeDensity + wet * 0.008 + night * 0.003;
       scene.background.copy(scene.fog.color);
-      sky.position.copy(camera.position);
+      sky.visible = !overhead;
+      sky.position.copy(view.position);
       sky.material.uniforms.uNight.value = night;
       sky.material.uniforms.uRain.value = wet;
       sky.material.uniforms.uHorizon.value.copy(scene.fog.color);
@@ -257,7 +253,7 @@ export function createWeather(runtime, kit) {
         sun.position.copy(anchor).addScaledVector(sunDirection, 73);
         renderer.shadowMap.needsUpdate = true;
       }
-      rain(dt, camera.position, wet);
+      rain(dt, view.position, overhead ? 0 : wet);
       return (1 - night * 0.89) * (1 - wet * 0.49);
     }
   };

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { addLocalCollider, floor, sign, standard, wayfinding } from './buildingFactory.js';
+import { addLocalCollider, floor, sign, standard } from './buildingFactory.js';
 import { batchStaticMeshes, box, createPortal, cylinder, groupAt, part, rod } from './sceneKit.js';
 
 const roofGeometry = new THREE.ConeGeometry(1, 1, 4);
@@ -9,29 +9,39 @@ const parasolGeometry = new THREE.ConeGeometry(1, 0.47, 9, 1);
 function buildGroundDetails(parent, kit) {
   const { ground } = kit.map;
   const m = kit.materials;
-  floor(parent, m.field, ground.x, ground.z, ground.width, ground.depth, 0.022, 2.4);
-  const courtX = -1.9;
-  const courtZ = -35.8;
+  const lawn = groupAt(parent, 'Central lawn', [ground.x, 0, ground.z]);
+  kit.layout.add('ground', lawn, ground, { surface: true });
+  floor(lawn, m.field, 0, 0, ground.width, ground.depth, 0.022, 2.4);
+  const court = kit.prop(parent, 'court', 'Sports court', -1.9, -35.8, 0, { surface: true });
+  const courtX = 0;
+  const courtZ = 0;
   const courtW = 14;
   const courtD = 20;
-  floor(parent, standard('#8b9a7d', { map: m.paving.map }), courtX, courtZ, courtW + 0.72, courtD + 0.7, 0.035, 5);
-  floor(parent, standard('#698b7c'), courtX, courtZ, courtW, courtD, 0.039);
+  floor(court, standard('#8b9a7d', { map: m.paving.map }), courtX, courtZ, courtW + 0.72, courtD + 0.7, 0.035, 5);
+  floor(court, standard('#698b7c'), courtX, courtZ, courtW, courtD, 0.039);
   const markings = standard('#e0d8b7');
+  const courtMark = (size, position) => {
+    const mesh = box(court, markings, size, position);
+    mesh.userData.grade = true;
+    mesh.castShadow = false;
+    return mesh;
+  };
   for (const edge of [-1, 1]) {
-    box(parent, markings, [0.075, 0.006, courtD], [courtX + edge * courtW / 2, 0.046, courtZ]);
-    box(parent, markings, [courtW, 0.006, 0.075], [courtX, 0.046, courtZ + edge * courtD / 2]);
-    floor(parent, standard('#8eaa9b'), courtX, courtZ + edge * 7.3, 4.4, 5.24, 0.042);
+    courtMark([0.075, 0.006, courtD], [courtX + edge * courtW / 2, 0.046, courtZ]);
+    courtMark([courtW, 0.006, 0.075], [courtX, 0.046, courtZ + edge * courtD / 2]);
+    floor(court, standard('#8eaa9b'), courtX, courtZ + edge * 7.3, 4.4, 5.24, 0.042);
     for (const side of [-1, 1]) {
-      box(parent, markings, [0.064, 0.007, 5.18], [courtX + side * 2.2, 0.049, courtZ + edge * 7.38]);
+      courtMark([0.064, 0.007, 5.18], [courtX + side * 2.2, 0.049, courtZ + edge * 7.38]);
     }
-    box(parent, markings, [4.4, 0.007, 0.065], [courtX, 0.049, courtZ + edge * 4.79]);
+    courtMark([4.4, 0.007, 0.065], [courtX, 0.049, courtZ + edge * 4.79]);
   }
-  box(parent, markings, [courtW, 0.006, 0.075], [courtX, 0.046, courtZ]);
-  const circle = part(parent, new THREE.TorusGeometry(1.68, 0.029, 5, 64), markings, [courtX, 0.044, courtZ]);
+  courtMark([courtW, 0.006, 0.075], [courtX, 0.046, courtZ]);
+  const circle = part(court, new THREE.TorusGeometry(1.68, 0.029, 5, 64), markings, [courtX, 0.044, courtZ]);
   circle.rotation.x = -Math.PI / 2;
   circle.castShadow = false;
+  circle.userData.grade = true;
 
-  const shelter = groupAt(parent, 'Red-roofed field shelter', [-15.2, 0, -43.4], Math.PI / 2);
+  const shelter = kit.prop(parent, 'shelter', 'Field shelter', -15.2, -43.4, Math.PI / 2);
   box(shelter, m.concrete, [5.9, 0.12, 4.1], [0, 0.06, 0]);
   part(shelter, roofGeometry, m.cafe, [0, 3.03, 0], [4.76, 1.13, 3.38]);
   for (const x of [-2.63, 2.63]) {
@@ -59,18 +69,21 @@ function buildGroundDetails(parent, kit) {
 
 function buildCanteen(parent, kit) {
   const m = kit.materials;
-  const cafe = kit.building(parent, 'canteen', 'cafe', {
+  kit.building(parent, 'canteen', 'cafe', {
     title: 'THE STAMFORD CAFÉ', subtitle: 'CAMPUS CANTEEN', signWidth: 8.3,
     doors: [{ x: -0.83, title: 'Canteen Entrance', width: 2.02, signWidth: 2.49, glass: true }],
-    windows: [{ x: -4.64, width: 2.51, height: 1.31, counter: true }, { x: 3.93, width: 3.05, height: 1.28, counter: true }]
+    windows: [{ x: -4.64, width: 2.51, height: 1.31, counter: true }, { x: 3.93, width: 3.05, height: 1.28, counter: true }],
+    details({ root, width, facade }) {
+      const stripes = Math.floor((width - 1.6) / 0.445);
+      for (let stripe = 0; stripe < stripes; stripe++) {
+        const cloth = box(root, stripe % 3 ? m.cafe : m.white, [0.452, 0.08, 1.48],
+          [(stripe - (stripes - 1) / 2) * 0.445, 2.8, facade + 0.62]);
+        cloth.rotation.x = 0.19;
+      }
+    }
   });
-  for (let stripe = 0; stripe < 27; stripe++) {
-    const cloth = box(cafe.root, stripe % 3 ? m.cafe : m.white, [0.452, 0.08, 1.48],
-      [(stripe - 13) * 0.445, 2.8, cafe.facade + 0.62]);
-    cloth.rotation.x = 0.19;
-  }
   for (const [x, z] of [[-12.7, -50.25], [-8.45, -50.6]]) {
-    const patio = groupAt(parent, 'Café terrace umbrella and table', [x, 0, z]);
+    const patio = kit.prop(parent, 'umbrella', 'Café umbrella and table', x, z);
     cylinder(patio, m.steel, 0.044, 2.4, [0, 1.2, 0]);
     part(patio, parasolGeometry, m.cafe, [0, 2.44, 0], [1.42, 1, 1.42]);
     cylinder(patio, m.wood, 0.67, 0.086, [0, 0.76, 0]);
@@ -80,15 +93,18 @@ function buildCanteen(parent, kit) {
 }
 
 function poolWater(scene, pool) {
-  const geometry = new THREE.PlaneGeometry(pool.width, pool.depth, 40, 66);
-  const vertices = geometry.attributes.position;
-  vertices.setUsage(THREE.DynamicDrawUsage);
+  const geometry = new THREE.PlaneGeometry(pool.width, pool.depth, 26, 42);
+  geometry.computeBoundingSphere();
+  geometry.boundingSphere.radius += 0.08;
   const timeUniform = { value: 0 };
   const dayUniform = { value: 1 };
-  const commonVertex = `
+  const vertex = (wave) => `
     varying vec3 vWorld;
+    uniform float uTime;
     void main() {
-      vWorld = (modelMatrix * vec4(position, 1.0)).xyz;
+      vec3 p = position;
+      ${wave ? 'p.z = .048 * sin(1.65 * p.x + 1.7 * uTime) + .032 * cos(-1.9 * p.y - 1.31 * uTime);' : ''}
+      vWorld = (modelMatrix * vec4(p, 1.0)).xyz;
       gl_Position = projectionMatrix * viewMatrix * vec4(vWorld, 1.0);
     }`;
   const rippleFunctions = `
@@ -102,7 +118,7 @@ function poolWater(scene, pool) {
     }`;
   const surface = new THREE.Mesh(geometry, new THREE.ShaderMaterial({
     uniforms: { uTime: timeUniform, uDay: dayUniform },
-    vertexShader: commonVertex,
+    vertexShader: vertex(true),
     fragmentShader: `${rippleFunctions}
       void main() {
         vec3 toEye = normalize(cameraPosition - vWorld);
@@ -117,14 +133,15 @@ function poolWater(scene, pool) {
       }`,
     transparent: true, depthWrite: false, side: THREE.DoubleSide
   }));
-  surface.position.set(pool.x, pool.waterY, pool.z);
+  surface.position.y = pool.waterY;
+  surface.userData.skipPick = true;
   surface.rotation.x = -Math.PI / 2;
   surface.renderOrder = 3;
   scene.add(surface);
 
   const caustics = new THREE.Mesh(new THREE.PlaneGeometry(pool.width, pool.depth), new THREE.ShaderMaterial({
     uniforms: { uTime: timeUniform, uDay: dayUniform },
-    vertexShader: commonVertex,
+    vertexShader: vertex(false),
     fragmentShader: `${rippleFunctions}
       void main() {
         float light = ripple(vWorld.xz * 1.3) + .42 * ripple(vWorld.zx * .94);
@@ -133,25 +150,22 @@ function poolWater(scene, pool) {
       }`,
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
   }));
-  caustics.position.set(pool.x, pool.bottomY + 0.016, pool.z);
+  caustics.position.y = pool.bottomY + 0.016;
+  caustics.userData.skipPick = true;
   caustics.rotation.x = -Math.PI / 2;
   scene.add(caustics);
   return (time, daylight) => {
     timeUniform.value = time;
     dayUniform.value = daylight;
-    // Wave height is h(x,z,t) = .048 sin(1.65x + 1.7t) + .032 cos(1.9z - 1.31t).
-    for (let i = 0; i < vertices.count; i++) {
-      const x = vertices.getX(i);
-      const z = -vertices.getY(i);
-      vertices.setZ(i, 0.048 * Math.sin(x * 1.65 + time * 1.7) + 0.032 * Math.cos(z * 1.9 - time * 1.31));
-    }
-    vertices.needsUpdate = true;
+    // The vertex shader evaluates h(x,z,t) = .048 sin(1.65x + 1.7t) + .032 cos(1.9z - 1.31t).
   };
 }
 
-function buildPool(parent, kit) {
+function buildPoolBasin(parent, kit) {
   const { pool } = kit.map;
-  const { x, z, width, depth, bottomY } = pool;
+  const { width, depth, bottomY } = pool;
+  const x = 0;
+  const z = 0;
   const m = kit.materials;
   const tileTrim = standard('#287b8d');
   const lip = standard('#e5dec0', { map: m.deck.map, roughness: 0.71 });
@@ -186,23 +200,30 @@ function buildPool(parent, kit) {
     const y = -1.99 + rung * 0.39;
     rod(parent, m.steel, [ladderX, y, ladderZ - 0.36], [ladderX, y, ladderZ + 0.36], 0.029);
   }
-  const shed = kit.building(parent, 'poolHouse', 'pool', {
+}
+
+function buildPoolSurroundings(parent, kit) {
+  const m = kit.materials;
+  kit.building(parent, 'poolHouse', 'pool', {
     doors: [{ x: -2.23, title: 'Pool House', width: 1.38, material: m.blue }],
-    windows: [{ x: 0.71, width: 2.41, height: 1.01 }]
+    windows: [{ x: 0.71, width: 2.41, height: 1.01 }],
+    details({ root, width, face }) {
+      const slats = Math.floor((width - 0.3) / 0.276);
+      for (let slat = 0; slat < slats; slat++) {
+        const px = (slat - (slats - 1) / 2) * 0.276;
+        box(root, m.blue, [0.045, 2.75, 0.049], [px, 1.41, face + 0.026]);
+      }
+    }
   });
-  for (let slat = 0; slat < 29; slat++) {
-    const px = (slat - 14) * 0.276;
-    box(shed.root, m.blue, [0.045, 2.75, 0.049], [px, 1.41, shed.face + 0.026]);
+  const gate = kit.prop(parent, 'pool-gate', 'Swimming pool gate', 10.5, -54.85);
+  for (const px of [-3.34, 3.34]) {
+    box(gate, m.brick, [0.53, 2.58, 0.58], [px, 1.29, 0]);
+    box(gate, m.concrete, [0.68, 0.15, 0.73], [px, 2.59, 0]);
+    addLocalCollider(kit.colliders, gate, px, 0, 0.55, 0.61);
   }
-  const gateZ = z + depth / 2 + 4.15;
-  for (const px of [x - 3.34, x + 3.34]) {
-    box(parent, m.brick, [0.53, 2.58, 0.58], [px, 1.29, gateZ]);
-    box(parent, m.concrete, [0.68, 0.15, 0.73], [px, 2.59, gateZ]);
-    addLocalCollider(kit.colliders, parent, px, gateZ, 0.55, 0.61);
-  }
-  box(parent, m.blue, [7.17, 0.5, 0.2], [x, 2.62, gateZ]);
-  sign(parent, { title: 'SWIMMING POOL', subtitle: 'STAMFORD UNIVERSITY BANGLADESH', width: 6.97, height: 0.45,
-    position: [x, 2.62, gateZ + 0.106], serif: true });
+  box(gate, m.blue, [7.17, 0.5, 0.2], [0, 2.62, 0]);
+  sign(gate, { title: 'SWIMMING POOL', subtitle: 'STAMFORD UNIVERSITY BANGLADESH', width: 6.97, height: 0.45,
+    position: [0, 2.62, 0.106], serif: true });
   kit.tree(parent, 1.45, -65.2, 1.22, 'palm', 281);
   kit.tree(parent, 18.5, -66.1, 0.92, 'palm', 386);
   for (const [px, pz, scale, type] of [
@@ -235,16 +256,19 @@ export function buildGroundPool(scene, kit) {
     windows: [{ x: -4.65, width: 2.55 }, { x: 7.2, width: 2.9 }]
   });
   buildCanteen(zone, kit);
-  wayfinding(zone, m, { x: 12.85, z: -50.34, title: 'SWIMMING POOL ↑', subtitle: 'FOLLOW THE NORTH PATH', width: 2.64 });
-  const poolZone = groupAt(zone, 'Swimming Pool Deck', [0, 0, 0]);
-  buildPool(poolZone, kit);
+  kit.direction(zone, { x: 12.85, z: -50.34, title: 'SWIMMING POOL ↑', subtitle: 'FOLLOW THE NORTH PATH', width: 2.64 });
+  const pool = kit.map.pool;
+  const poolRoot = groupAt(zone, 'Swimming pool', [pool.x, 0, pool.z]);
+  kit.layout.add('pool', poolRoot, pool);
+  buildPoolBasin(poolRoot, kit);
+  buildPoolSurroundings(zone, kit);
   batchStaticMeshes(zone);
 
-  const pool = kit.map.pool;
-  const updateWater = poolWater(scene, pool);
+  const updateWater = poolWater(poolRoot, pool);
   const portal = createPortal(scene, { name: 'Doraemon Underwater Portal', position: pool.ring, tilt: -Math.PI / 2 });
+  kit.layout.add('pool-portal', portal.root, pool.portalTransform ??= {}, { elevation: true });
   return {
-    portal,
+    portal, poolRoot,
     update(time, daylight) {
       updateWater(time, daylight);
       portal.update(time);

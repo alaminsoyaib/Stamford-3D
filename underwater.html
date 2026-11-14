@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#052330">
+  <meta name="theme-color" content="#07142d">
   <meta name="description" content="Follow the underwater portal from a sunlit reef to a bioluminescent abyss.">
   <title>Deep Sea · Stamford Campus Atlas</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23082b35'/%3E%3Ccircle cx='16' cy='16' r='9' fill='none' stroke='%23a0f3ec' stroke-width='1.5'/%3E%3Cpath d='M5 17q6-6 12 0t10-1' fill='none' stroke='%23a0f3ec' stroke-width='1.5'/%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2307142d'/%3E%3Ccircle cx='16' cy='16' r='9' fill='none' stroke='%239fe9ff' stroke-width='1.5'/%3E%3Cpath d='M5 17q6-6 12 0t10-1' fill='none' stroke='%239fe9ff' stroke-width='1.5'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="./styles.css">
   <script type="importmap">
     {
@@ -20,17 +20,6 @@
 <body class="ocean" data-active="false" data-ready="false">
   <canvas id="world" aria-label="Interactive 3D underwater environment" tabindex="-1"></canvas>
   <div class="vignette" aria-hidden="true"></div>
-  <header class="masthead">
-    <div class="brand">
-      <svg class="brand-mark" viewBox="0 0 42 42" aria-hidden="true">
-        <rect x="1" y="1" width="40" height="40" rx="11" fill="none" stroke="currentColor" stroke-opacity=".4"/>
-        <circle cx="21" cy="21" r="10" fill="none" stroke="currentColor" stroke-width="1.35"/>
-        <path d="M9 22c5-8 8 6 14 1s6-6 10-4m-20 8c5-4 6 5 11 2" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/>
-      </svg>
-      <div><strong>STAMFORD</strong><span>UNDERWATER EXPEDITION</span></div>
-    </div>
-    <a class="return-link" id="campus-link" href="./index.html?arrival=pool">← <span>Return to campus</span></a>
-  </header>
 
   <main class="hud">
     <div class="location">
@@ -39,27 +28,29 @@
     </div>
     <div class="reticle" aria-hidden="true"></div>
 
-    <section class="briefing" aria-labelledby="scene-title">
-      <p class="eyebrow"><span class="index-tag">02</span> <span>UNDERWATER EXPEDITION</span></p>
-      <h1 id="scene-title">Into the<br><em>deep.</em></h1>
-      <p class="intro-copy">Follow the reef past drifting schools and turtles into the bioluminescent water at 120 metres.</p>
-      <button class="primary" id="start" type="button" disabled><span>Begin descent</span><span aria-hidden="true">↓</span></button>
-      <p class="load-state" id="load-state" role="status">Building the ocean scene…</p>
-      <noscript><p class="load-state">Enable JavaScript to begin the descent.</p></noscript>
+    <section class="briefing" aria-label="Underwater introduction">
+      <div class="hero-backdrop" aria-hidden="true"></div>
+      <h1 class="hero-title">Into the <span>Deep</span></h1>
+      <img class="hero-art" src="./assets/ocean-diorama.webp" width="1200" height="722" alt="" fetchpriority="high">
+      <p class="intro-copy">Dive from a sunlit reef to the bioluminescent seafloor, 120 metres below the surface.</p>
+      <div class="briefing-controls">
+        <button class="primary" id="start" type="button" disabled>
+          <span>Begin descent</span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v11m-4-4 4 4 4-4"/></svg>
+        </button>
+        <p class="load-state" id="load-state" role="status">Building the ocean scene…</p>
+        <noscript><p class="load-state">Enable JavaScript to begin the descent.</p></noscript>
+      </div>
     </section>
 
-    <aside class="instrument ocean-instrument" aria-label="Depth and coordinates">
-      <div class="instrument-top"><span><i class="signal"></i> DEPTH SOUNDER</span><span>02</span></div>
+    <aside class="instrument ocean-instrument" aria-label="Depth and coordinates" hidden>
+      <div class="instrument-top"><span><i class="signal"></i> Depth</span><span>↓</span></div>
       <div class="depth-readout"><output id="depth-value">0.0</output><span>m</span></div>
       <div class="depth-chart">
         <div id="depth-scale" class="depth-scale" role="meter" aria-label="Depth" aria-valuemin="0" aria-valuemax="120" aria-valuenow="0">
           <div class="depth-marker" id="depth-marker"></div>
         </div>
         <div class="depth-labels" aria-hidden="true">
-          <span style="--point: 0%"><b>0</b> Surface</span>
-          <span style="--point: 25%"><b>30</b> Midwater</span>
-          <span style="--point: 58.333%"><b>70</b> Abyss</span>
-          <span style="--point: 100%"><b>120</b> Seafloor</span>
+          <span>0</span><span>120 m</span>
         </div>
       </div>
       <div class="telemetry">
@@ -69,18 +60,12 @@
       </div>
     </aside>
 
-    <div class="prompt" id="proximity" hidden>
-      <span><i class="signal"></i> <span id="proximity-text"></span></span>
-    </div>
     <div class="bottom-hud">
-      <div class="dive-cues" aria-label="Dive zones">
-        <span data-layer="0" aria-current="true"><b>01</b> Sunlit reef</span>
-        <span data-layer="1"><b>02</b> Midwater</span>
-        <span data-layer="2"><b>03</b> The abyss</span>
-      </div>
-      <div class="legend" aria-label="Keyboard shortcuts">
-        <span><kbd>WASD</kbd> / <kbd>↑←↓→</kbd> Swim</span><span><kbd>Mouse</kbd> Look</span>
-        <span><kbd>Space</kbd> Ascend</span><span><kbd>Shift</kbd> / <kbd>C</kbd> Descend</span><span><kbd>Esc</kbd> Pause</span>
+      <div class="scene-actions">
+        <a class="scene-action" id="campus-link" href="./index.html?arrival=pool">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 10H5m4-4-4 4 4 4"/></svg>
+          Return to campus
+        </a>
       </div>
     </div>
     <div class="touch-drive" role="group" aria-label="On-screen movement">
@@ -95,7 +80,7 @@
     <div class="notice" id="notice" role="status" hidden></div>
   </main>
 
-  <div class="transition" aria-hidden="true"><span>01 / STAMFORD CAMPUS</span><strong>Returning to the pool</strong></div>
+  <div class="transition" aria-hidden="true"><strong>Returning to the pool</strong></div>
   <script type="module">
     import('./src/mainUnderwater.js').then(({ startUnderwater }) => startUnderwater()).catch((error) => {
       console.error(error);

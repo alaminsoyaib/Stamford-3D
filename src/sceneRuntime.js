@@ -7,7 +7,7 @@ const moveCodes = new Set([
 ]);
 const svgNS = 'http://www.w3.org/2000/svg';
 
-export function createRuntime({ fov, far, shadows = false, resumeLabel }) {
+export function createRuntime({ fov, far, shadows = false, shiftStrafe = false, resumeLabel }) {
   const canvas = document.getElementById('world');
   const start = document.getElementById('start');
   const notice = document.getElementById('notice');
@@ -38,6 +38,7 @@ export function createRuntime({ fov, far, shadows = false, resumeLabel }) {
   controls.maxPolarAngle = Math.PI - 0.035;
   controls.pointerSpeed = 0.77;
   let active = false;
+  let alternateCamera = null;
   let ready = false;
   let awaitingLock = false;
   let dragPointer = null;
@@ -75,7 +76,10 @@ export function createRuntime({ fov, far, shadows = false, resumeLabel }) {
   }
 
   function activate(mode) {
-    if (leaving || lostContext) return;
+    if (leaving || lostContext || alternateCamera) {
+      if (document.pointerLockElement === canvas) controls.unlock();
+      return;
+    }
     awaitingLock = false;
     active = true;
     document.body.dataset.active = 'true';
@@ -99,11 +103,10 @@ export function createRuntime({ fov, far, shadows = false, resumeLabel }) {
   function useDrag() {
     if (!awaitingLock) return;
     activate('drag');
-    announce('Drag to look around. Use the movement controls to explore.');
   }
 
   start.addEventListener('click', () => {
-    if (!ready || leaving || lostContext) return;
+    if (!ready || leaving || lostContext || alternateCamera) return;
     awaitingLock = true;
     if (coarse.matches || !canvas.requestPointerLock) {
       useDrag();
@@ -154,21 +157,23 @@ export function createRuntime({ fov, far, shadows = false, resumeLabel }) {
   }
 
   function runAction(code) {
-    if (ready && !leaving && !lostContext) actions[code]?.();
+    if (ready && !leaving && !lostContext && (!alternateCamera || code === 'KeyE')) actions[code]?.();
   }
   for (const button of buttons) button.addEventListener('click', () => runAction(button.dataset.action));
   addEventListener('keydown', (event) => {
-    if (event.ctrlKey || event.altKey || event.metaKey) return;
+    if (event.defaultPrevented || event.ctrlKey || event.altKey || event.metaKey || event.target.matches?.('input, select, textarea')) return;
     const code = event.code.replace(/^Numpad([1-4])$/, 'Digit$1');
     if (active && code === 'Escape') {
       pause();
       return;
     }
-    if (active && moveCodes.has(code)) {
+    const shiftedEditorKey = shiftStrafe && event.shiftKey && code === 'KeyE';
+    if (active && (moveCodes.has(code) || (shiftStrafe && code === 'KeyQ') || shiftedEditorKey)) {
       keys.add(code);
       event.preventDefault();
+      return;
     }
-    if (!event.repeat) runAction(code);
+    if (!event.repeat && !shiftedEditorKey) runAction(code);
   });
   addEventListener('keyup', (event) => keys.delete(event.code));
   addEventListener('blur', clearMovement);
@@ -198,6 +203,11 @@ export function createRuntime({ fov, far, shadows = false, resumeLabel }) {
     camera, scene, renderer, controls, announce,
     get active() { return active; },
     get leaving() { return leaving; },
+    setView(view) {
+      pause();
+      alternateCamera = view;
+      renderer.shadowMap.needsUpdate = shadows;
+    },
     down(...codes) {
       for (const code of codes) {
         if (keys.has(code)) return true;
@@ -226,17 +236,21 @@ export function createRuntime({ fov, far, shadows = false, resumeLabel }) {
       renderer.setAnimationLoop((now) => {
         const dt = Math.min(Math.max((now - previous) / 1000, 0), 0.08);
         previous = now;
-        if (lostContext) return;
+        if (lostContext || document.hidden) return;
         time += dt;
-        frame(dt, time);
-        renderer.render(scene, camera);
+        const view = alternateCamera ?? camera;
+        frame(dt, time, view);
+        renderer.render(scene, view);
       });
     }
   };
 }
 
 export function movementAxes(runtime) {
-  const x = Number(runtime.down('KeyD', 'ArrowRight')) - Number(runtime.down('KeyA', 'ArrowLeft'));
+  const shift = runtime.down('ShiftLeft', 'ShiftRight');
+  const right = runtime.down('KeyD', 'ArrowRight') || (shift && runtime.down('KeyE'));
+  const left = runtime.down('KeyA', 'ArrowLeft') || (shift && runtime.down('KeyQ'));
+  const x = Number(right) - Number(left);
   const z = Number(runtime.down('KeyW', 'ArrowUp')) - Number(runtime.down('KeyS', 'ArrowDown'));
   return [x, z];
 }
@@ -253,13 +267,10 @@ export function setLocation(code, name) {
   document.getElementById('zone-name').textContent = name;
 }
 
-export function setProximity(message) {
-  document.getElementById('proximity').hidden = !message;
-  document.getElementById('proximity-text').textContent = message;
-}
-
 export function makeMinimap(map) {
   const svg = document.getElementById('minimap');
+  const removed = new Set(map.removedObjects);
+  svg.replaceChildren();
   const { minX, maxX, minZ, maxZ, streetZ } = map.boundary;
   svg.setAttribute('viewBox', `${minX - 7} ${minZ - 4} ${maxX - minX + 14} ${streetZ - minZ + 8}`);
   function shape(tag, cssClass, attributes, parent = svg) {
@@ -269,7 +280,9 @@ export function makeMinimap(map) {
     parent.append(element);
     return element;
   }
-  function rect(cssClass, { x, z, width, depth, yaw = 0 }) {
+  function rect(cssClass, { x, z, width, depth, yaw = 0, scale = [1, 1, 1] }) {
+    width *= scale[0];
+    depth *= scale[2];
     return shape('rect', cssClass, {
       x: x - width / 2, y: z - depth / 2, width, height: depth, rx: 0.6,
       transform: `rotate(${-yaw} ${x} ${z})`
@@ -278,11 +291,20 @@ export function makeMinimap(map) {
   shape('path', 'outline', {
     d: `M${map.gate.x - 6},${maxZ} H${minX} V${minZ} H${maxX} V${maxZ} H${map.gate.x + 6}`
   });
-  for (const walkway of map.walkways) rect('walkway', walkway);
-  rect('green', map.ground);
+  for (const [index, walkway] of map.walkways.entries()) {
+    if (!removed.has(`walkway:${index + 1}`)) rect('walkway', walkway);
+  }
+  if (!removed.has('ground')) rect('green', map.ground);
   const garden = map.garden;
-  shape('ellipse', 'green', { cx: garden.x, cy: garden.z, rx: garden.radiusX, ry: garden.radiusZ });
-  for (const building of Object.values(map.buildings)) rect('footprint', building);
+  if (!removed.has('garden')) {
+    shape('ellipse', 'green', {
+      cx: garden.x, cy: garden.z, rx: garden.radiusX * (garden.scale?.[0] ?? 1), ry: garden.radiusZ * (garden.scale?.[2] ?? 1),
+      transform: `rotate(${-(garden.yaw ?? 0)} ${garden.x} ${garden.z})`
+    });
+  }
+  for (const [id, building] of Object.entries(map.buildings)) {
+    if (!removed.has(id)) rect('footprint', building);
+  }
   rect('water', map.pool);
   const stops = map.stops.map(({ key, position: [x, , z] }) => {
     const marker = shape('g', '', { transform: `translate(${x - 5} ${z})` });

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { addLocalCollider, sign, wayfinding } from './buildingFactory.js';
+import { addLocalCollider, sign } from './buildingFactory.js';
 import { batchStaticMeshes, box, cylinder, groupAt } from './sceneKit.js';
 
 export function buildGateGarden(scene, kit) {
@@ -38,6 +38,8 @@ export function buildGateGarden(scene, kit) {
     position: [0, height - 0.38, side * 0.571], width: span + 0.03, height: 1.08,
     yaw: side > 0 ? 0 : Math.PI, background: map.palette.campusBlue, seal: true, serif: true
   });
+  kit.layout.add('entry-gate', gate);
+  kit.refreshColliders(gate);
 
   kit.building(zone, 'guard', 'guard', {
     awning: true,
@@ -52,19 +54,22 @@ export function buildGateGarden(scene, kit) {
   for (const pz of [19.4, 23.8, 29.8]) kit.planter(zone, -10.28, pz, 0.37, 71 + pz);
 
   const garden = map.garden;
+  const lawn = groupAt(zone, 'Front garden lawn and curb', [garden.x, 0, garden.z]);
+  kit.layout.add('garden', lawn, garden, { surface: true });
   const disk = new THREE.Mesh(new THREE.CircleGeometry(1, 72), m.grass);
+  disk.userData.grade = true;
   disk.rotation.x = -Math.PI / 2;
-  disk.position.set(garden.x, 0.037, garden.z);
+  disk.position.y = 0.037;
   disk.scale.set(garden.radiusX, garden.radiusZ, 1);
   disk.receiveShadow = true;
-  zone.add(disk);
+  lawn.add(disk);
   for (let index = 0; index < 64; index++) {
     const angle = (index + 0.5) * Math.PI * 2 / 64;
     const dx = -Math.sin(angle) * garden.radiusX;
     const dz = Math.cos(angle) * garden.radiusZ;
-    const px = garden.x + Math.cos(angle) * garden.radiusX;
-    const pz = garden.z + Math.sin(angle) * garden.radiusZ;
-    const curb = box(zone, index % 2 ? m.white : m.black,
+    const px = Math.cos(angle) * garden.radiusX;
+    const pz = Math.sin(angle) * garden.radiusZ;
+    const curb = box(lawn, index % 2 ? m.white : m.black,
       [Math.hypot(dx, dz) * Math.PI / 32 + 0.025, 0.2, 0.28], [px, 0.108, pz]);
     curb.rotation.y = -Math.atan2(dz, dx);
   }
@@ -83,9 +88,9 @@ export function buildGateGarden(scene, kit) {
   kit.bench(zone, 3.0, 21.16, Math.PI);
   kit.bench(zone, 8.7, 12.8);
   kit.bench(zone, 13.8, 19.9, -Math.PI / 2);
-  wayfinding(zone, m, { x: 3.2, z: 25.7, title: 'FRONT GARDEN', subtitle: 'CSE AHEAD  •  ADMISSION ↗', width: 2.9 });
+  kit.direction(zone, { x: 3.2, z: 25.7, title: 'FRONT GARDEN', subtitle: 'CSE AHEAD  •  ADMISSION ↗', width: 2.9 });
 
-  const barrier = groupAt(zone, 'Raised driveway barrier', [3.0, 0, 27.8]);
+  const barrier = kit.prop(zone, 'barrier', 'Raised driveway barrier', 3, 27.8);
   cylinder(barrier, m.black, 0.13, 0.87, [0, 0.435, 0]);
   const beam = groupAt(barrier, 'Striped barrier arm', [0, 0.83, 0]);
   beam.rotation.z = 1.24;

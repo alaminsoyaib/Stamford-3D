@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { batchStaticMeshes, createPortal, cylinder, glowSprite, groupAt, part, rod, seededRandom } from './sceneKit.js';
-import { createRuntime, movementAxes, setLocation, setProximity, updateCoordinates } from './sceneRuntime.js';
+import { batchStaticMeshes, cameraFrustum, createPortal, cylinder, glowSprite, groupAt, part, rod, seededRandom } from './sceneKit.js';
+import { createRuntime, movementAxes, setLocation, updateCoordinates } from './sceneRuntime.js';
 
 const TAU = Math.PI * 2;
 const limit = 55;
@@ -109,9 +109,11 @@ function kelpPatch(scene, position, random, updates) {
   });
   const mesh = new THREE.Mesh(geometry, material);
   mesh.position.set(...position);
-  mesh.frustumCulled = false;
+  mesh.geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 3.25, 0), 4.5);
   scene.add(mesh);
-  updates.push((time) => {
+  const bounds = new THREE.Sphere(mesh.position.clone().add(mesh.geometry.boundingSphere.center), 4.5);
+  updates.push((time, frustum) => {
+    if (!frustum.intersectsSphere(bounds)) return;
     for (const [blade, { angle, phase, height, width }] of strands.entries()) {
       const dx = Math.cos(angle);
       const dz = Math.sin(angle);
@@ -197,35 +199,76 @@ function fishSchool(scene, center, count, radius, palette, medium, random, updat
   }));
   const phaseBase = random() * TAU;
   const speed = medium ? 0.39 : 0.61;
+  const schoolBounds = new THREE.Sphere(school.position, radius * 1.32 + 3);
+  const rig = [];
+  const batches = new Map();
+  const instance = new THREE.Matrix4();
+  const partMatrix = new THREE.Matrix4();
+  const pose = new THREE.Object3D();
+  const tail = new THREE.Object3D();
+  tail.position.x = -0.65;
+
+  function addPart(geometry, material, index, position, scale = [1, 1, 1], yaw = 0, articulated = false) {
+    const key = `${geometry.id}/${material.id}`;
+    if (!batches.has(key)) batches.set(key, { geometry, material, parts: [] });
+    const piece = new THREE.Object3D();
+    piece.position.fromArray(position);
+    piece.scale.fromArray(scale);
+    piece.rotation.y = yaw;
+    piece.updateMatrix();
+    batches.get(key).parts.push({ index, matrix: piece.matrix, articulated });
+  }
   for (let index = 0; index < count; index++) {
-    const body = groupAt(school, 'Fish with articulated tail', [0, 0, 0]);
     const size = (medium ? 0.99 : 0.52) * (0.76 + random() * 0.47);
-    body.scale.setScalar(size);
     const skin = materials[index % materials.length];
-    part(body, fishGeometry, skin.body, [0, 0, 0], [0.71, medium ? 0.32 : 0.39, 0.23]);
-    part(body, topFin, skin.fin, [0, 0, 0]);
-    part(body, sideFin, skin.fin, [0.11, -0.08, 0.17]).rotation.y = -0.6;
-    part(body, sideFin, skin.fin, [0.11, -0.08, -0.17]).rotation.y = 0.6;
+    addPart(fishGeometry, skin.body, index, [0, 0, 0], [0.71, medium ? 0.32 : 0.39, 0.23]);
+    addPart(topFin, skin.fin, index, [0, 0, 0]);
     for (const side of [-1, 1]) {
-      part(body, orb, whiteEye, [0.46, 0.08, side * 0.177], [0.077, 0.077, 0.032]);
-      part(body, orb, creatureEye, [0.48, 0.082, side * 0.199], [0.046, 0.048, 0.018]);
+      addPart(sideFin, skin.fin, index, [0.11, -0.08, side * 0.17], [1, 1, 1], -side * 0.6);
+      addPart(orb, whiteEye, index, [0.46, 0.08, side * 0.177], [0.077, 0.077, 0.032]);
+      addPart(orb, creatureEye, index, [0.48, 0.082, side * 0.199], [0.046, 0.048, 0.018]);
     }
-    const tail = groupAt(body, 'Tail pivot', [-0.65, 0, 0]);
-    part(tail, tailShape, skin.fin, [0, 0, 0]);
+    addPart(tailShape, skin.fin, index, [0, 0, 0], [1, 1, 1], 0, true);
     const r = radius + (random() - 0.5) * radius * 0.64;
     const phi = phaseBase + (index / count - 0.5) * 1.07 + (random() - 0.5) * 0.21;
     const offsetY = (random() - 0.5) * (medium ? 3.8 : 2.5);
-    updates.push((time) => {
+    rig.push({ size, r, phi, offsetY, body: new THREE.Matrix4(), tail: new THREE.Matrix4() });
+  }
+  for (const batch of batches.values()) {
+    const { geometry, material, parts } = batch;
+    batch.mesh = new THREE.InstancedMesh(geometry, material, parts.length);
+    batch.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    // Fixed conservative bounds cover the entire orbit while individual poses move.
+    batch.mesh.boundingSphere = new THREE.Sphere(new THREE.Vector3(), schoolBounds.radius);
+    school.add(batch.mesh);
+  }
+  updates.push((time, frustum) => {
+    school.visible = frustum.intersectsSphere(schoolBounds);
+    if (!school.visible) return;
+    for (let index = 0; index < rig.length; index++) {
+      const { size, r, phi, offsetY, body, tail: tailPose } = rig[index];
       const angle = speed * time + phi;
       const sin = Math.sin(angle);
       const cos = Math.cos(angle);
       // With the school as (x₀,z₀), x(t)=x₀+R cos(ωt+φ), z(t)=z₀+R sin(ωt+φ).
-      body.position.set(r * cos, offsetY + Math.sin(angle * 2 + index * 0.47) * 0.45, r * sin);
+      pose.position.set(r * cos, offsetY + Math.sin(angle * 2 + index * 0.47) * 0.45, r * sin);
       // The local +X nose follows the orbit tangent (-sin θ, cos θ). The tail uses θ_y=A sin(kt+φ).
-      body.rotation.y = Math.atan2(-cos, -sin);
+      pose.rotation.y = Math.atan2(-cos, -sin);
+      pose.scale.setScalar(size);
+      pose.updateMatrix();
+      body.copy(pose.matrix);
       tail.rotation.y = 0.52 * Math.sin(time * (medium ? 9.4 : 13.7) + phi);
-    });
-  }
+      tail.updateMatrix();
+      tailPose.multiplyMatrices(body, tail.matrix);
+    }
+    for (const { mesh, parts } of batches.values()) {
+      for (const [index, piece] of parts.entries()) {
+        partMatrix.copy(piece.articulated ? rig[piece.index].tail : rig[piece.index].body);
+        mesh.setMatrixAt(index, instance.multiplyMatrices(partMatrix, piece.matrix));
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+    }
+  });
 }
 
 function turtle(scene, center, radius, phase, updates) {
@@ -300,21 +343,26 @@ function jellyfish(scene, center, scale, color, phase, hasLight, updates) {
   const threads = new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({
     color: lit, opacity: 0.55, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
   }));
-  threads.frustumCulled = false;
+  geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, -1.15, 0), 2.5);
   root.add(threads);
   const light = hasLight ? new THREE.PointLight(color, 12, 11, 2) : null;
   if (light) root.add(light);
 
-  updates.push((time) => {
+  const bounds = new THREE.Sphere(new THREE.Vector3().fromArray(center), scale * 4 + 1.6);
+  updates.push((time, frustum) => {
+    const visible = frustum.intersectsSphere(bounds);
+    bell.visible = rim.visible = halo.visible = threads.visible = visible;
+    if (!visible && !light) return;
     const pulse = 0.5 + 0.5 * Math.sin(time * 2.65 + phase);
     const width = 0.92 + pulse * 0.12;
     root.position.set(center[0] + Math.sin(time * 0.31 + phase) * 1.08,
       center[1] + Math.sin(time * 0.68 + phase) * 0.52, center[2] + Math.cos(time * 0.27 + phase) * 0.95);
+    if (light) light.intensity = 11 + pulse * 13;
+    if (!visible) return;
     bell.scale.set(width, 0.76 - 0.18 * pulse, width);
     rim.scale.set(width * 0.93, width * 0.93, 1);
     mantle.emissiveIntensity = 0.6 + pulse * 0.76;
     halo.material.opacity = 0.21 + 0.16 * pulse;
-    if (light) light.intensity = 11 + pulse * 13;
     for (let tendril = 0; tendril < tendrils; tendril++) {
       const angle = tendril * TAU / tendrils;
       const x = Math.cos(angle);
@@ -561,10 +609,11 @@ export function startUnderwater() {
   const forward = new THREE.Vector3();
   const right = new THREE.Vector3();
   const swim = new THREE.Vector3();
+  const frustum = new THREE.Frustum();
+  const projectionView = new THREE.Matrix4();
   const depthValue = document.getElementById('depth-value');
   const meter = document.getElementById('depth-scale');
   const marker = document.getElementById('depth-marker');
-  const layerLabels = [...document.querySelectorAll('[data-layer]')];
   let lastLayer = -1;
   let nextHud = 0;
 
@@ -598,7 +647,8 @@ export function startUnderwater() {
     }
     const depth = Math.max(0, -camera.position.y);
     atmosphere(depth);
-    for (const animate of animations) animate(time);
+    cameraFrustum(camera, frustum, projectionView);
+    for (const animate of animations) animate(time, frustum);
     portal.update(time);
     if (time >= nextHud) {
       updateCoordinates(camera.position);
@@ -608,13 +658,8 @@ export function startUnderwater() {
       const layer = depth < 30 ? 0 : depth < 70 ? 1 : 2;
       if (layer !== lastLayer) {
         setLocation(`LAYER 0${layer + 1}`, layers[layer]);
-        for (const label of layerLabels) {
-          if (Number(label.dataset.layer) === layer) label.setAttribute('aria-current', 'true');
-          else label.removeAttribute('aria-current');
-        }
         lastLayer = layer;
       }
-      setProximity(camera.position.distanceTo(portal.position) < 9.2 ? 'Swim into the return ring to reach campus' : '');
       nextHud = time + 0.095;
     }
   });
