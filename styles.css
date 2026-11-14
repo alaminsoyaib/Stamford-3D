@@ -176,12 +176,26 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outlin
   top: var(--top);
   left: var(--gutter);
   max-width: calc(100% - 2 * var(--gutter) - 54px);
-  padding: 9px 12px;
+  padding: 8px 12px;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--glass);
+  box-shadow: 0 10px 24px #030c2533;
 }
-[data-briefing="compact"] .location { display: block; }
+[data-briefing="compact"] .location { display: flex; align-items: center; gap: 8px; }
+:is(.ocean, body.ocean)[data-briefing="compact"] .location { display: block; padding: 9px 12px; }
+.location-icon {
+  display: block;
+  width: 16px;
+  height: 16px;
+  flex: none;
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 45%, transparent));
+}
 .eyebrow, .instrument-top, .instrument-bottom {
   display: flex;
   align-items: center;
@@ -199,7 +213,8 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outlin
   background: var(--accent);
   box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 65%, transparent);
 }
-.location strong { display: block; margin-top: 3px; font-weight: 650; font-size: 14px; }
+.location strong { display: block; font-weight: 650; font-size: 14px; line-height: 1.2; }
+:is(.ocean, body.ocean) .location strong { margin-top: 3px; }
 .reticle {
   display: none;
   position: absolute;
@@ -341,6 +356,8 @@ kbd {
   white-space: nowrap;
 }
 .checkpoints [aria-current] kbd { background: var(--accent); color: var(--dark); }
+.scene-action kbd { margin-left: 2px; }
+.scene-action:hover:not(:disabled) kbd { border-color: var(--accent); color: var(--accent); }
 .scene-action svg { width: 17px; height: 17px; fill: none; stroke: var(--accent); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
 .notice {
   position: absolute;
@@ -393,7 +410,8 @@ kbd {
     --instrument-width: 126px;
     --dock-space: 117px;
   }
-  .location { padding: 6px 7px; }
+  .location { padding: 6px 9px; gap: 6px; }
+  .location-icon { width: 14px; height: 14px; }
   .location strong { font-size: 12px; }
   .instrument { padding: 7px; border-radius: 10px; }
   .instrument-top, .instrument-bottom { font-size: 8px; }
@@ -476,7 +494,7 @@ kbd {
   .checkpoints, .scene-actions { gap: 2px; padding: 3px; }
   .checkpoints { width: auto; }
   .checkpoints button, .scene-action { flex-direction: row; gap: 4px; padding: 3px 5px; font-size: clamp(8px, 1.45vw, 11px); min-height: 29px; }
-  .checkpoints kbd, .scene-action svg { width: 14px; height: 14px; min-width: 14px; min-height: 14px; font-size: 8px; }
+  .checkpoints kbd, .scene-action kbd, .scene-action svg { width: 14px; height: 14px; min-width: 14px; min-height: 14px; font-size: 8px; }
 }
 @media (min-width: 500px) and (max-width: 560px) and (max-height: 460px) {
   .checkpoints button, .scene-action { gap: 2px; padding-inline: 3px; }

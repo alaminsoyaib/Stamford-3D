@@ -61,11 +61,11 @@
     </aside>
 
     <div class="bottom-hud">
-      <div class="scene-actions">
-        <a class="scene-action" id="campus-link" href="./index.html?arrival=pool">
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 10H5m4-4-4 4 4 4"/></svg>
-          Return to campus
-        </a>
+      <div class="scene-actions" role="group" aria-label="Ocean actions">
+        <button type="button" class="scene-action" id="campus-link" data-action="KeyP" disabled>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 10H5m4-4-4 4 4 4 4"/></svg>
+          Campus <kbd>P</kbd>
+        </button>
       </div>
     </div>
     <div class="touch-drive" role="group" aria-label="On-screen movement">

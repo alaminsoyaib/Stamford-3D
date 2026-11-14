@@ -32,7 +32,7 @@ Select **Enter campus** or **Begin descent** to switch from the illustrated land
 | N | Toggle daylight and night |
 | R | Toggle rain and wet paving |
 | V | Cycle Summer, Autumn and Winter Fog |
-| P | Cross directly into the ocean |
+| P | Switch directly between campus and deep sea (preserves roaming or landing view) |
 | E | Open or exit the campus layout editor |
 | Space | Ascend in the ocean |
 | Shift or C | Descend in the ocean |

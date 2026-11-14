@@ -48,6 +48,8 @@ export function createRuntime({ fov, far, shadows = false, shiftStrafe = false, 
   let lostContext = false;
   let noticeTimer;
   let actions = {};
+  const autoRoam = new URLSearchParams(location.search).has('roam');
+  let pendingAction = null;
 
   function announce(message) {
     notice.textContent = message;
@@ -103,6 +105,21 @@ export function createRuntime({ fov, far, shadows = false, shiftStrafe = false, 
   function useDrag() {
     if (!awaitingLock) return;
     activate('drag');
+  }
+
+  function startRoaming() {
+    if (leaving || lostContext || alternateCamera) return;
+    activate('drag');
+    if (!coarse.matches && canvas.requestPointerLock) {
+      try {
+        const promise = canvas.requestPointerLock?.();
+        if (promise && typeof promise.catch === 'function') {
+          promise.catch(() => activate('drag'));
+        }
+      } catch {
+        activate('drag');
+      }
+    }
   }
 
   start.addEventListener('click', () => {
@@ -173,7 +190,12 @@ export function createRuntime({ fov, far, shadows = false, shiftStrafe = false, 
       event.preventDefault();
       return;
     }
-    if (!event.repeat && !shiftedEditorKey) runAction(code);
+    if (!event.repeat && !shiftedEditorKey) {
+      if (!ready && (code === 'KeyP' || code === 'KeyC' || code === 'KeyO')) {
+        pendingAction = code;
+      }
+      runAction(code);
+    }
   });
   addEventListener('keyup', (event) => keys.delete(event.code));
   addEventListener('blur', clearMovement);
@@ -200,7 +222,7 @@ export function createRuntime({ fov, far, shadows = false, shiftStrafe = false, 
   });
 
   return {
-    camera, scene, renderer, controls, announce,
+    camera, scene, renderer, controls, announce, startRoaming,
     get active() { return active; },
     get leaving() { return leaving; },
     setView(view) {
@@ -222,6 +244,14 @@ export function createRuntime({ fov, far, shadows = false, shiftStrafe = false, 
       status.textContent = '';
       start.disabled = false;
       for (const button of buttons) button.disabled = !Object.hasOwn(actions, button.dataset.action);
+      if (pendingAction && actions[pendingAction]) {
+        const code = pendingAction;
+        pendingAction = null;
+        runAction(code);
+      }
+      if (autoRoam && !leaving && !lostContext && !alternateCamera) {
+        startRoaming();
+      }
     },
     travel(navigate) {
       if (leaving) return;
@@ -263,8 +293,10 @@ export function updateCoordinates(position) {
 }
 
 export function setLocation(code, name) {
-  document.querySelector('#zone-code span').textContent = code;
-  document.getElementById('zone-name').textContent = name;
+  const codeSpan = document.querySelector('#zone-code span');
+  if (codeSpan) codeSpan.textContent = code;
+  const nameEl = document.getElementById('zone-name');
+  if (nameEl) nameEl.textContent = name;
 }
 
 export function makeMinimap(map) {

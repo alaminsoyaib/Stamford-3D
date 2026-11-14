@@ -618,17 +618,26 @@ export function startUnderwater() {
   let nextHud = 0;
 
   function returnToPool() {
-    runtime.travel(() => { window.location.href = 'index.html?arrival=pool'; });
+    const roaming = runtime.active || document.body.dataset.briefing === 'compact';
+    runtime.travel(() => {
+      window.location.href = roaming ? 'index.html?arrival=pool&roam=1' : 'index.html';
+    });
   }
   addEventListener('pageshow', (event) => {
     if (event.persisted && camera.position.distanceTo(portal.position) <= 2.2) placeAtReef();
   });
-  document.getElementById('campus-link').addEventListener('click', (event) => {
-    if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
-    event.preventDefault();
-    returnToPool();
+  const campusLink = document.getElementById('campus-link');
+  if (campusLink) {
+    campusLink.addEventListener('click', (event) => {
+      if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      returnToPool();
+    });
+  }
+  runtime.ready({
+    KeyP: returnToPool,
+    KeyC: () => { if (!runtime.active) returnToPool(); }
   });
-  runtime.ready();
   runtime.loop((dt, time) => {
     if (runtime.active && !runtime.leaving) {
       const [x, z] = movementAxes(runtime);

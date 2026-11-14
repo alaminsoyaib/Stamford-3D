@@ -23,7 +23,11 @@
 
   <main class="hud">
     <div class="location">
-      <span id="zone-code" class="eyebrow"><i class="signal"></i><span>ZONE A</span></span>
+      <svg class="location-icon" viewBox="0 0 20 20" aria-hidden="true">
+        <path d="M10 2.5a5.5 5.5 0 0 0-5.5 5.5c0 4.2 5.5 9.5 5.5 9.5s5.5-5.3 5.5-9.5A5.5 5.5 0 0 0 10 2.5z"/>
+        <circle cx="10" cy="8" r="2"/>
+      </svg>
+      <span id="zone-code" hidden><span>ZONE A</span></span>
       <strong id="zone-name">Main Gate &amp; Front Garden</strong>
     </div>
     <div class="reticle" aria-hidden="true"></div>
@@ -67,7 +71,7 @@
         </button>
         <button type="button" class="scene-action" data-action="KeyP" disabled>
           <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M7 10h6m-3-3 3 3-3 3"/></svg>
-          Deep sea
+          Deep sea <kbd>P</kbd>
         </button>
       </div>
     </div>

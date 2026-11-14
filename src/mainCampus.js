@@ -163,7 +163,10 @@ export async function startCampus() {
   let nextHud = 0;
 
   function dive() {
-    runtime.travel(() => { window.location.href = 'underwater.html'; });
+    const roaming = runtime.active || document.body.dataset.briefing === 'compact';
+    runtime.travel(() => {
+      window.location.href = roaming ? 'underwater.html?roam=1' : 'underwater.html';
+    });
   }
 
   function updateHud() {
@@ -259,7 +262,7 @@ export async function startCampus() {
     document.body.dataset.briefing = 'compact';
     teleport(stop);
   }]));
-  runtime.ready({ ...weather.actions, ...stopActions, KeyP: dive, KeyE: editor.toggle });
+  runtime.ready({ ...weather.actions, ...stopActions, KeyP: dive, KeyO: dive, KeyE: editor.toggle });
 
   runtime.loop((dt, time, view) => {
     editor.update();
