@@ -617,7 +617,8 @@ kbd {
 }
 .layout-editor :disabled, .editor-deck :disabled { opacity: .46; cursor: default; }
 .layout-editor option { background: #10233d; }
-.editor-picker, .editor-values label { display: grid; gap: 4px; color: var(--muted); }
+.editor-picker, .editor-name-control, .editor-values label { display: grid; gap: 4px; color: var(--muted); }
+.editor-name-control { margin-top: 8px; }
 .editor-grid-control {
   display: flex;
   justify-content: space-between;
@@ -625,10 +626,10 @@ kbd {
   margin: 8px 0 12px;
   color: var(--muted);
 }
-.editor-picker select, .editor-values input { width: 100%; }
+.editor-picker select, .editor-name-control input, .editor-values input { width: 100%; }
 .editor-view-tools { margin-block: 7px 11px; flex-wrap: wrap; }
 .editor-modes button, .editor-actions button { flex: 1; }
-#editor-object-panel[data-selected="false"] > :is(.editor-view-tools, .editor-modes) { display: none; }
+#editor-object-panel[data-selected="false"] > :is(.editor-name-control, .editor-view-tools, .editor-modes) { display: none; }
 .editor-palette { margin-right: auto; }
 .editor-palette button { touch-action: none; user-select: none; }
 #editor-deck-search { width: min(175px, 100%); }
@@ -749,6 +750,30 @@ kbd {
   color: var(--fg);
   font-size: 11px;
   font-weight: 700;
+}
+.editor-card .editor-card-rename {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  min-height: 0;
+  padding: 0;
+  background: #101d30ed;
+  color: #a8d5ff;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  font: 13px/1 system-ui, sans-serif;
+  cursor: pointer;
+  transition: all .15s ease;
+  z-index: 2;
+}
+.editor-card .editor-card-rename:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: #182d47;
 }
 .editor-card .editor-card-delete {
   position: absolute;
@@ -874,6 +899,30 @@ kbd {
   border-radius: 4px;
   padding: 6px 8px;
   font-size: 12px;
+}
+.editor-name-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 12px 0 16px;
+}
+.editor-name-row label {
+  color: var(--muted);
+  font-size: 12px;
+}
+.editor-name-row input {
+  width: 100%;
+  box-sizing: border-box;
+  background: #0b192e;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--fg);
+  padding: 8px 10px;
+  font: inherit;
+}
+.editor-name-row input:focus {
+  outline: 1px solid var(--accent);
+  border-color: var(--accent);
 }
 @media (max-width: 620px) {
   .layout-editor {

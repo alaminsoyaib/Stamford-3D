@@ -44,6 +44,13 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
   const importApply = document.getElementById('editor-import-apply');
   const importCancel = document.getElementById('editor-import-cancel');
   const picker = document.getElementById('editor-object');
+  const nameControl = panel.querySelector('.editor-name-control');
+  const nameInput = document.getElementById('editor-object-name');
+  const renameDialog = document.getElementById('editor-rename-dialog');
+  const renameForm = document.getElementById('editor-rename-form');
+  const renameInput = document.getElementById('editor-rename-input');
+  const renameCancel = document.getElementById('editor-rename-cancel');
+  let pendingRename = null;
   const sliceButton = panel.querySelector('#editor-slice');
   const wallFields = panel.querySelector('#editor-wall-fields');
   const wallLength = panel.querySelector('#editor-wall-length');
@@ -233,6 +240,9 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
     sizeDetail.hidden = !building && !door;
     sizeDetail.value = building ? `${rounded(building.story * spec.floors)} m wall height · ${building.story} m per floor`
       : door ? `Attached to the ${spec.wall} wall` : '';
+    if (nameInput && document.activeElement !== nameInput) {
+      nameInput.value = selected?.label ?? '';
+    }
   }
 
   function mode(value) {
@@ -260,6 +270,11 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
     panel.querySelector('#editor-object-panel').dataset.selected = String(Boolean(entry || selectedWall));
     outline.visible = Boolean(entry);
     document.getElementById('editor-focus').disabled = !entry;
+    if (nameInput) {
+      nameInput.value = entry?.label ?? '';
+      nameInput.disabled = !entry;
+    }
+    if (nameControl) nameControl.hidden = !entry;
     const fieldset = document.getElementById('editor-fields');
     fieldset.disabled = fieldset.hidden = !entry;
     storeButton.disabled = !entry || entry.id === 'pool-portal';
@@ -290,6 +305,8 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
       if (wallLength) wallLength.textContent = `Length: ${len.toFixed(1)} m · From [${seg.a.map(rounded).join(', ')}] to [${seg.b.map(rounded).join(', ')}]`;
       panel.querySelector('#editor-object-panel').dataset.selected = 'true';
       picker.value = '';
+      if (nameControl) nameControl.hidden = true;
+      if (nameInput) nameInput.disabled = true;
     } else {
       wallHighlight.visible = false;
       if (wallFields) wallFields.hidden = true;
@@ -465,6 +482,67 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
   function updateHistory() {
     undoButton.disabled = !undo.length;
     redoButton.disabled = !redo.length;
+  }
+
+  function renameEntry(entry, newLabel) {
+    if (!entry) return;
+    const clean = newLabel.trim();
+    if (!clean || clean === entry.label) return;
+    const prevLabel = entry.label;
+
+    function apply(label, oldLabel) {
+      entry.label = label;
+      entry.root.name = label;
+      if (!entry.spec) {
+        entry.spec = (kit.map.elements ??= {})[entry.id] ??= {};
+      }
+      entry.spec.label = label;
+      if (entry.spec.copyLabel) entry.spec.copyLabel = label;
+      if (kit.map.buildings?.[entry.id]) kit.map.buildings[entry.id].label = label;
+      else if (kit.map.elements?.[entry.id]) kit.map.elements[entry.id].label = label;
+      else if (entry.id === 'pool' && kit.map.pool) kit.map.pool.label = label;
+
+      if (entry.building) {
+        for (const child of entries.values()) {
+          if (child.buildingId === entry.id && child.label.includes(oldLabel)) {
+            child.label = child.label.replace(oldLabel, label);
+            child.root.name = child.label;
+            if (child.spec) {
+              child.spec.label = child.label;
+              if (child.spec.copyLabel) child.spec.copyLabel = child.label;
+            }
+            if (kit.map.elements?.[child.id]) kit.map.elements[child.id].label = child.label;
+            refreshEntry(child);
+          }
+        }
+        for (const record of parked.values()) {
+          const child = record.entry;
+          if (child.buildingId === entry.id && child.label.includes(oldLabel)) {
+            child.label = child.label.replace(oldLabel, label);
+            child.root.name = child.label;
+            if (child.spec) {
+              child.spec.label = child.label;
+              if (child.spec.copyLabel) child.spec.copyLabel = child.label;
+            }
+            if (kit.map.elements?.[child.id]) kit.map.elements[child.id].label = child.label;
+          }
+        }
+      }
+
+      if (entries.has(entry.id)) {
+        refreshEntry(entry);
+      }
+      refreshDeck();
+      if (selected === entry && nameInput) nameInput.value = label;
+      finishLayoutChange();
+    }
+
+    apply(clean, prevLabel);
+    record({
+      undo: () => apply(prevLabel, clean),
+      redo: () => apply(clean, prevLabel)
+    });
+    message(`Renamed to "${clean}".`);
   }
 
   function beginTransform() {
@@ -995,9 +1073,9 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
       const baseId = template ?? (entry.spec?.type === 'building' ? 'building' : id.split(':')[0]);
       const dimKey = `${width}x${depth}-${floors}fl`;
       const dimLabel = `${label} (${width}×${depth} m · ${floors} fl)`;
-      return [`building:${baseId}:${dimKey}`, dimLabel];
+      return [`building:${baseId}:${dimKey}:${label}`, dimLabel];
     }
-    if (!template && (entry.spec?.type === 'tree' || entry.id.startsWith('added-tree'))) return ['added-tree', 'Tree'];
+    if (!template && (entry.spec?.type === 'tree' || entry.id.startsWith('added-tree')) && entry.label === 'Tree') return ['added-tree', 'Tree'];
     return [`${id.split(':')[0]}:${label}`, label];
   }
 
@@ -1053,6 +1131,11 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
       const caption = document.createElement('span');
       caption.className = 'editor-card-caption';
       caption.textContent = records.length > 1 ? label : entry.label;
+      caption.title = 'Double-click to rename';
+      caption.addEventListener('dblclick', (event) => {
+        event.stopPropagation();
+        openRenameDialog(entry);
+      });
       placeButton.append(tile, caption);
       if (records.length > 1) {
         const quantity = document.createElement('span');
@@ -1075,6 +1158,18 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
       previews.add(tile, entry);
       card.append(placeButton);
       if (entry.id !== 'pool') {
+        const renameButton = document.createElement('button');
+        renameButton.type = 'button';
+        renameButton.className = 'editor-card-rename';
+        renameButton.textContent = '✎';
+        renameButton.title = 'Rename component';
+        renameButton.setAttribute('aria-label', `Rename ${entry.label}`);
+        renameButton.addEventListener('click', (event) => {
+          event.stopPropagation();
+          openRenameDialog(entry);
+        });
+        card.append(renameButton);
+
         const removeButton = document.createElement('button');
         removeButton.type = 'button';
         removeButton.className = 'editor-card-delete';
@@ -1329,6 +1424,40 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
     canvas.focus({ preventScroll: true });
     message(`Deleted ${stored.entry.label} from the deck.`);
   });
+
+  function openRenameDialog(entry) {
+    if (!entry || !renameDialog) return;
+    pendingRename = entry;
+    if (renameInput) renameInput.value = entry.label;
+    renameDialog.showModal();
+    renameInput?.select();
+  }
+
+  if (renameForm) {
+    renameForm.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const target = pendingRename;
+      pendingRename = null;
+      renameDialog.close();
+      if (!target) return;
+      const newLabel = renameInput ? renameInput.value.trim() : '';
+      if (newLabel && newLabel !== target.label) {
+        renameEntry(target, newLabel);
+      }
+    });
+  }
+
+  if (renameCancel) {
+    renameCancel.addEventListener('click', () => {
+      pendingRename = null;
+      renameDialog.close();
+    });
+  }
+
+  renameDialog?.addEventListener('close', () => {
+    pendingRename = null;
+  });
+
   document.getElementById('editor-fit').addEventListener('click', fit);
   document.getElementById('editor-tilt').addEventListener('click', () => {
     const overhead = orbit.getPolarAngle() < 0.5;
@@ -1491,8 +1620,32 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
     input.addEventListener('blur', updateFields);
   }
 
+  if (nameInput) {
+    nameInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        nameInput.blur();
+      } else if (event.key === 'Escape') {
+        event.preventDefault();
+        if (selected) nameInput.value = selected.label;
+        nameInput.blur();
+      }
+    });
+    nameInput.addEventListener('change', () => {
+      if (!selected) return;
+      const clean = nameInput.value.trim();
+      if (!clean) {
+        nameInput.value = selected.label;
+        return;
+      }
+      if (clean !== selected.label) {
+        renameEntry(selected, clean);
+      }
+    });
+  }
+
   addEventListener('keydown', (event) => {
-    if (!active || event.defaultPrevented || event.altKey || confirm.open || importDialog?.open) return;
+    if (!active || event.defaultPrevented || event.altKey || confirm.open || importDialog?.open || renameDialog?.open) return;
     const editingText = event.target.matches?.('input, select, textarea') || event.target.isContentEditable;
     if (event.ctrlKey || event.metaKey) {
       if (editingText || !['KeyZ', 'KeyD'].includes(event.code)) return;
@@ -1568,6 +1721,10 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
     },
     refresh(id) {
       refreshEntry(entries.get(id));
+    },
+    rename(id, newLabel) {
+      const entry = entries.get(id) ?? parked.get(id)?.entry;
+      if (entry) renameEntry(entry, newLabel);
     }
   };
 }

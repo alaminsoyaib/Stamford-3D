@@ -6,6 +6,13 @@ Record completed changes here, with verification when it helps a future handoff.
 
 ### Added
 
+- Added component name editing in the Layout Editor:
+  - Added a dedicated "Component name" text input (`#editor-object-name`) in the inspector panel (`#editor-object-panel`), allowing users to inspect and rename any placed campus object (buildings, trees, facilities, doors, and portal).
+  - Added a rename button (`✎`, `.editor-card-rename`) on every placement deck card along with double-click caption editing, opening a clean `#editor-rename-dialog` modal to rename objects directly while stored on the deck.
+  - Updating a component name updates `entry.label`, `entry.root.name`, `entry.spec.label`, and the serialized entry in `map.buildings[id]`, `map.elements[id]`, or `map.pool`, updates the `<select id="editor-object">` option text, updates deck card captions, and auto-cascades to attached child doors.
+  - Full undo/redo integration: renaming records undo/redo history steps, restoring previous names on Ctrl+Z and reapplying on Ctrl+Shift+Z.
+  - Changes persist immediately to browser localStorage and are serialized into `CAMPUS_MAP.json` on Export JSON and Copy JSON.
+  - Added unit test suite `tests/campusRename.test.js` and verified end-to-end in Chromium.
 - Enhanced aerial drone audio profile in `src/campusDroneAudio.js`: added an aerodynamic prop-wash/motor body resonance oscillator (68–90 Hz triangle wave with 240 Hz low-pass filter), smoothed the low-pass filter cutoff from harsh 3,800–8,500 Hz down to a warm 1,750–3,250 Hz range with Q = 0.75 acoustic resonance, adjusted base playback rate to 0.94× with controlled spooling (up to ~1.18× instead of high-pitched 1.50×), and rebalanced output gain (0.17–0.32) for immersive, non-fatiguing flight.
 - Added the curved black-and-white planting bed beside the gate, planted with a palm, two other trees, and terracotta pots. It is editable as one facility and appears on the minimap.
 - Modeled the measured tiled platform and its planters on the inside right of the campus gate. The platform appears on the minimap and can be moved or stored in the layout editor.

@@ -115,6 +115,9 @@
         <label class="editor-picker">Object
           <select id="editor-object"><option value="">Select an object</option></select>
         </label>
+        <label class="editor-name-control" hidden>Component name
+          <input id="editor-object-name" type="text" placeholder="Component name" disabled autocomplete="off" spellcheck="false">
+        </label>
         <div class="editor-view-tools">
           <button type="button" id="editor-focus" disabled>Frame selection</button>
           <button type="button" id="editor-duplicate" title="Duplicate (Ctrl+D)" disabled>Duplicate</button>
@@ -226,6 +229,19 @@
         <div class="editor-actions">
           <button type="button" id="editor-import-cancel">Cancel</button>
           <button type="button" id="editor-import-apply" class="editor-export">Apply layout</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="editor-rename-dialog" class="editor-confirm" aria-labelledby="editor-rename-title">
+      <form method="dialog" id="editor-rename-form">
+        <h2 id="editor-rename-title">Rename component</h2>
+        <div class="editor-name-row">
+          <label for="editor-rename-input">Component name</label>
+          <input type="text" id="editor-rename-input" class="editor-rename-input" required autocomplete="off" spellcheck="false" placeholder="Enter component name">
+        </div>
+        <div class="editor-actions">
+          <button type="button" id="editor-rename-cancel">Cancel</button>
+          <button type="submit" id="editor-rename-submit" class="editor-export">Save name</button>
         </div>
       </form>
     </dialog>
