@@ -15,6 +15,7 @@ export function createRuntime({ fov, far, shadows = false, shiftStrafe = false, 
   const status = document.getElementById('load-state');
   const coarse = matchMedia('(pointer: coarse)');
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  const initialLabel = start?.firstElementChild?.textContent || 'Enter campus';
   const keys = new Set();
   const heldButtons = new Map();
   const mouseButtons = new Set();
@@ -103,6 +104,15 @@ export function createRuntime({ fov, far, shadows = false, shiftStrafe = false, 
     delete document.body.dataset.mode;
     if (document.pointerLockElement === canvas) controls.unlock();
     if (wasActive && !leaving) start.focus({ preventScroll: true });
+  }
+
+  function exitToStart(onExit) {
+    if (leaving) return;
+    pause();
+    delete document.body.dataset.briefing;
+    delete document.body.dataset.mode;
+    if (start?.firstElementChild) start.firstElementChild.textContent = initialLabel;
+    onExit?.();
   }
 
   function useDrag() {
@@ -218,14 +228,18 @@ export function createRuntime({ fov, far, shadows = false, shiftStrafe = false, 
     event.preventDefault();
     lostContext = true;
     pause();
+    document.body.dataset.ready = 'false';
     status.textContent = 'Graphics context paused. Waiting for the browser to restore it…';
     start.disabled = true;
+    start.hidden = true;
   });
   canvas.addEventListener('webglcontextrestored', () => {
     lostContext = false;
     renderer.shadowMap.needsUpdate = shadows;
     status.textContent = '';
     start.disabled = !ready;
+    start.hidden = !ready;
+    if (ready) document.body.dataset.ready = 'true';
   });
   addEventListener('pageshow', (event) => {
     if (!event.persisted) return;
@@ -234,7 +248,7 @@ export function createRuntime({ fov, far, shadows = false, shiftStrafe = false, 
   });
 
   return {
-    camera, scene, renderer, controls, announce,
+    camera, scene, renderer, controls, announce, exitToStart,
     get active() { return active; },
     get leaving() { return leaving; },
     setView(view) {
@@ -256,6 +270,7 @@ export function createRuntime({ fov, far, shadows = false, shiftStrafe = false, 
       if (!import.meta.env?.PROD) document.querySelector('.camera-coordinates').hidden = false;
       status.textContent = '';
       start.disabled = false;
+      start.hidden = false;
       for (const button of buttons) button.disabled = !Object.hasOwn(actions, button.dataset.action);
       if (pendingAction && actions[pendingAction]) {
         const code = pendingAction;

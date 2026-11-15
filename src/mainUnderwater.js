@@ -654,9 +654,21 @@ export function startUnderwater() {
       returnToPool();
     });
   }
+
+  function exitOcean() {
+    placeAtReef();
+    runtime.exitToStart(() => {
+      if (location.search) history.replaceState(null, '', location.pathname);
+    });
+  }
+
+  document.getElementById('exit-briefing')?.addEventListener('click', exitOcean);
+
   runtime.ready({
     KeyP: returnToPool,
-    KeyM: toggleMute
+    KeyM: toggleMute,
+    KeyX: exitOcean,
+    Escape: exitOcean
   });
   runtime.loop((dt, time) => {
     const roaming = runtime.active && !runtime.leaving;

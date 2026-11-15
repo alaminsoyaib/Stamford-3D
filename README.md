@@ -26,7 +26,8 @@ Select **Enter campus** or **Begin descent** to switch from the illustrated land
 | Mouse look | Look after selecting **Enter campus** or **Begin descent** (clicking canvas engages pointer lock) |
 | ↑ / Left-click | Ascend altitude on campus drone and in deep sea |
 | ↓ / Right-click | Descend altitude on campus drone and in deep sea |
-| Esc | Release the pointer and pause |
+| Esc | Release the pointer and pause (press again while paused to return to start page) |
+| X | Exit exploration and return to the start page |
 | 1 | Main gate and front garden |
 | 2 | CSE, Admission Wing, bus and the library route |
 | 3 | Central ground, Academic Building and canteen |

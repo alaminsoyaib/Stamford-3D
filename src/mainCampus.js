@@ -207,12 +207,14 @@ export async function startCampus() {
   await buildCSEAdmission(scene, kit);
   if (new URLSearchParams(location.search).get('arrival') !== 'pool') {
     const hero = document.getElementById('campus-hero');
-    try {
-      renderCampusHero(kit.layout.objects.get('cse').root, hero);
-    } catch (error) {
-      // The tour can still open if the browser cannot allocate a preview context.
-      hero.hidden = true;
-      console.warn('The CSE landing preview could not render.', error);
+    if (hero instanceof HTMLCanvasElement) {
+      try {
+        renderCampusHero(kit.layout.objects.get('cse').root, hero);
+      } catch (error) {
+        // The tour can still open if the browser cannot allocate a preview context.
+        hero.hidden = true;
+        console.warn('The CSE landing preview could not render.', error);
+      }
     }
   }
   const ground = buildGroundPool(scene, kit);
@@ -488,7 +490,27 @@ export async function startCampus() {
     if (stop.key === '4' && !kit.layout.objects.has('pool')) runtime.announce('Place the swimming pool from the deck to visit it.');
     else teleport(stop);
   }]));
-  runtime.ready({ ...weather.actions, ...stopActions, KeyP: dive, KeyO: dive, KeyE: editor.toggle, KeyM: toggleMute });
+
+  function exitCampus() {
+    if (editor.active) editor.toggle();
+    teleport(map.stops[0]);
+    runtime.exitToStart(() => {
+      if (location.search) history.replaceState(null, '', location.pathname);
+    });
+  }
+
+  document.getElementById('exit-briefing')?.addEventListener('click', exitCampus);
+
+  runtime.ready({
+    ...weather.actions,
+    ...stopActions,
+    KeyP: dive,
+    KeyO: dive,
+    KeyE: editor.toggle,
+    KeyM: toggleMute,
+    KeyX: exitCampus,
+    Escape: exitCampus
+  });
   poolButton.disabled = !kit.layout.objects.has('pool');
   if (new URLSearchParams(location.search).has('editor')) {
     editor.toggle();

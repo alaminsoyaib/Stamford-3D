@@ -36,12 +36,18 @@
     <section class="briefing" aria-label="Campus introduction">
       <div class="hero-backdrop" aria-hidden="true"></div>
       <h1 class="hero-title">Stamford <span>Campus</span></h1>
-      <canvas class="hero-art" id="campus-hero" width="1400" height="840" role="img" aria-label="The campus CSE building, with its brick lattice façade and Stamford University sign"></canvas>
+      <img class="hero-art" id="campus-hero" src="./assets/campus-cse-hero.webp" width="1400" height="840" alt="The campus CSE building, with its brick lattice façade and Stamford University sign" fetchpriority="high">
       <p class="intro-copy">Explore the campus in 3D, from the front garden to the portal beneath the swimming pool.</p>
       <div class="briefing-controls">
-        <button class="primary" id="start" type="button" disabled>
-          <span>Enter campus</span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h11m-4-4 4 4-4 4"/></svg>
-        </button>
+        <div class="briefing-buttons">
+          <button class="primary" id="start" type="button" disabled hidden>
+            <span>Enter campus</span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h11m-4-4 4 4-4 4"/></svg>
+          </button>
+          <button class="exit-briefing" id="exit-briefing" type="button" aria-label="Exit to start page">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M9 3H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h4m4-4 4-4-4-4m4 4H7"/></svg>
+            <span>Exit to start</span>
+          </button>
+        </div>
         <p class="load-state" id="load-state" role="status">Building the campus scene…</p>
         <noscript><p class="load-state">Enable JavaScript to explore the campus.</p></noscript>
       </div>
@@ -77,6 +83,10 @@
           Deep sea <kbd>P</kbd>
         </button>
         <button type="button" class="scene-action" data-action="KeyM" aria-pressed="false" disabled>Sound <kbd>M</kbd></button>
+        <button type="button" class="scene-action" id="exit-campus" data-action="KeyX" disabled>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M9 3H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h4m4-4 4-4-4-4m4 4H7"/></svg>
+          Exit <kbd>X</kbd>
+        </button>
       </div>
     </div>
     <div class="touch-drive" role="group" aria-label="On-screen movement">

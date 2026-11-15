@@ -130,9 +130,61 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outlin
   transform: translateX(-50%);
   display: grid;
   justify-items: center;
+  align-items: center;
+  min-height: 50px;
   gap: 7px;
   width: max-content;
   max-width: calc(100% - 2 * var(--gutter));
+}
+.briefing-buttons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+.primary:disabled,
+[data-ready="false"] .briefing-buttons {
+  display: none;
+}
+.exit-briefing {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 50px;
+  padding: 5px 22px;
+  border: 1px solid var(--line);
+  border-radius: 40px;
+  background: var(--glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  color: var(--fg);
+  box-shadow: 0 6px 24px #050c245c;
+  font-size: 15px;
+  font-weight: 700;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s, transform .15s;
+}
+.exit-briefing:hover {
+  background: #bddaff28;
+  border-color: var(--accent);
+  color: #fff;
+}
+.exit-briefing:active {
+  transform: scale(0.98);
+}
+.exit-briefing svg {
+  width: 19px;
+  height: 19px;
+  stroke: var(--accent);
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+[data-briefing="compact"] .exit-briefing {
+  display: inline-flex;
 }
 .primary {
   display: inline-flex;
@@ -447,8 +499,9 @@ kbd {
     margin-inline: auto;
     text-align: center;
   }
-  .briefing-controls { bottom: calc(var(--dock-space) + 25px); }
-  .primary { min-height: 44px; font-size: 14px; }
+  .briefing-controls { bottom: calc(var(--dock-space) + 25px); min-height: 44px; }
+  .primary, .exit-briefing { min-height: 44px; font-size: 14px; }
+  .exit-briefing { padding: 4px 16px; }
   .primary svg { width: 32px; height: 32px; padding: 7px; }
   .bottom-hud { flex-wrap: wrap; justify-content: center; padding-top: 7px; gap: 5px; }
   .checkpoints { width: 100%; }
@@ -499,8 +552,11 @@ kbd {
   .campus .hero-art, .ocean .hero-art { top: 50%; width: min(66vw, 79dvh); transform: translate(-50%, -47%); }
   .ocean .hero-art { width: min(57vw, 77dvh); }
   .intro-copy { left: var(--gutter); right: auto; bottom: calc(var(--dock-space) + 8px); max-width: 25vw; margin: 0; font-size: 11px; text-align: left; }
-  .briefing-controls { bottom: calc(var(--dock-space) + 6px); }
-  .primary { min-height: 39px; padding: 3px 4px 3px 12px; font-size: 12px; }
+  .briefing-controls { bottom: calc(var(--dock-space) + 6px); min-height: 39px; }
+  .primary, .exit-briefing { min-height: 39px; font-size: 12px; }
+  .primary { padding: 3px 4px 3px 12px; }
+  .exit-briefing { padding: 3px 14px; }
+  .exit-briefing svg { width: 15px; height: 15px; }
   .primary svg { width: 29px; height: 29px; padding: 6px; }
   .bottom-hud { flex-wrap: nowrap; gap: 4px; padding-top: 5px; }
   .checkpoints, .scene-actions { gap: 2px; padding: 3px; }

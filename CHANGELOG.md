@@ -6,6 +6,22 @@ Record completed changes here, with verification when it helps a future handoff.
 
 ### Added
 
+- Improved briefing controls loading UX on Campus and Ocean landing pages:
+  - Replaced the disabled/grayed-out "Enter campus" and "Begin descent" buttons during scene initialization with the dedicated loading status text ("Building the campus scene…").
+  - Hid the button while loading (`hidden` attribute, `[data-ready="false"] .briefing-buttons`, and `.primary:disabled { display: none; }`), preventing layout shifts that previously pushed the button upward while loading.
+  - Aligned and centered the loading indicator within `.briefing-controls` with matching `min-height`, guaranteeing a seamless transition where the status text disappears and the ready button appears in its exact normal position without shifting.
+  - Added unit test coverage in `tests/briefingControls.test.js`.
+
+- Added an exit option to return to the start page from 3D exploration:
+  - Added an **Exit to start** button (`#exit-briefing`) displayed prominently alongside the resume button whenever exploration is paused.
+  - Added an **Exit** action button (`#exit-campus` / `#exit-ocean`, shortcut <kbd>X</kbd>) in the bottom HUD scene actions bar on both campus and deep sea views.
+  - Added double-Escape shortcut behavior: pressing `Escape` while in flight pauses pointer lock, and pressing `Escape` while already paused exits exploration and returns directly to the start page.
+  - Exiting pauses flight, silences audio, closes the layout editor if open, resets the view to checkpoint 1 (Main Gate & Front Garden), and reveals the start page hero artwork and title.
+  - Added unit test in `tests/campusExit.test.js`.
+
+- Added high-fidelity 2D transparent hero renders of the CSE building ([assets/campus-cse-hero.webp](assets/campus-cse-hero.webp), [assets/campus-cse-hero.png](assets/campus-cse-hero.png), and updated [assets/campus-diorama.webp](assets/campus-diorama.webp)) captured from the exact orthographic angle and lighting of the 3D model with PCF soft shadows, ACES filmic tone mapping, Stamford University Bangladesh fascia, and the ground sign monument.
+- Replaced the landing page `<canvas id="campus-hero">` with an optimized `<img class="hero-art" id="campus-hero" src="./assets/campus-cse-hero.webp" fetchpriority="high">` in `index.html`, eliminating the initial blank delay and dynamic WebGL clone render so the CSE building displays instantaneously upon initial page load. Guarded `renderCampusHero` in `src/mainCampus.js` to run only when a canvas element is targeted.
+
 - Added component name editing in the Layout Editor:
   - Added a dedicated "Component name" text input (`#editor-object-name`) in the inspector panel (`#editor-object-panel`), allowing users to inspect and rename any placed campus object (buildings, trees, facilities, doors, and portal).
   - Added a rename button (`✎`, `.editor-card-rename`) on every placement deck card along with double-click caption editing, opening a clean `#editor-rename-dialog` modal to rename objects directly while stored on the deck.

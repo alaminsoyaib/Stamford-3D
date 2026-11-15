@@ -34,9 +34,15 @@
       <img class="hero-art" src="./assets/ocean-diorama.webp" width="1200" height="722" alt="" fetchpriority="high">
       <p class="intro-copy">Dive from a sunlit reef to the bioluminescent seafloor, 120 metres below the surface.</p>
       <div class="briefing-controls">
-        <button class="primary" id="start" type="button" disabled>
-          <span>Begin descent</span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v11m-4-4 4 4 4-4"/></svg>
-        </button>
+        <div class="briefing-buttons">
+          <button class="primary" id="start" type="button" disabled hidden>
+            <span>Begin descent</span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v11m-4-4 4 4 4-4"/></svg>
+          </button>
+          <button class="exit-briefing" id="exit-briefing" type="button" aria-label="Exit to start page">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M9 3H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h4m4-4 4-4-4-4m4 4H7"/></svg>
+            <span>Exit to start</span>
+          </button>
+        </div>
         <p class="load-state" id="load-state" role="status">Building the ocean scene…</p>
         <noscript><p class="load-state">Enable JavaScript to begin the descent.</p></noscript>
       </div>
@@ -69,6 +75,10 @@
           Campus <kbd>P</kbd>
         </button>
         <button type="button" class="scene-action" data-action="KeyM" aria-pressed="false" disabled>Sound <kbd>M</kbd></button>
+        <button type="button" class="scene-action" id="exit-ocean" data-action="KeyX" disabled>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M9 3H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h4m4-4 4-4-4-4m4 4H7"/></svg>
+          Exit <kbd>X</kbd>
+        </button>
       </div>
     </div>
     <div class="touch-drive" role="group" aria-label="On-screen movement">
