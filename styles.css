@@ -389,6 +389,9 @@ kbd {
 .transition strong { font-size: clamp(25px, 4.5vw, 62px); font-weight: 650; letter-spacing: -.04em; }
 [data-transit="true"] .transition { opacity: 1; visibility: visible; transition: opacity .58s ease; }
 .touch-drive, .pause-button { display: none; }
+.touch-drive .drone-touch { display: none; }
+[data-drone="true"] .touch-drive .drone-touch { display: block; font-size: 11px; }
+#drone-altitude { color: var(--accent); font-size: 12px; white-space: nowrap; }
 
 @media (max-width: 760px) {
   :root { --instrument-width: 152px; }

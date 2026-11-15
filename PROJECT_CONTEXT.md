@@ -9,6 +9,7 @@ Serve the repository root over HTTP in a WebGL 2 browser. The two HTML entry poi
 | File | Responsibility |
 | --- | --- |
 | [index.html](index.html) | Campus entry, minimap, coordinates, checkpoint shortcuts, editor entry |
+| [src/campusDroneAudio.js](src/campusDroneAudio.js) | Synthesized rotor hum, movement pitch, and stereo cues for campus flight |
 | [underwater.html](underwater.html) | Ocean entry, depth meter, swim controls, campus return link |
 | [styles.css](styles.css) | Shared landing screens, blue scene themes, responsive HUD, portal transition |
 | [assets/](assets/) | Underwater landing artwork, original campus concept artwork, and locally hosted Bricolage Grotesque |
@@ -65,6 +66,8 @@ The built-in image generation tool produced the underwater artwork and the earli
 - Undo and redo hold committed transforms, placement and deck operations, and land boundary edits in memory. Pool transforms capture the portal, checkpoint, and zone together. Replaying an edit updates the scene and saves the current layout for reload and export. Layout import validates JSON structure from file selection or direct text paste and reloads into the editor.
 
 ## Graphics details to preserve
+
+- Drone mode uses the campus camera and mouse look. Its altitude spans the walking eye height to 80 m. Horizontal collision reuses the campus footprints with height checks so the drone can clear roofs and blocks descent into them. The rotor fades while exploration is paused.
 
 - Models use `THREE.Group` hierarchies and local transforms. The editor keeps transformable groups separate. The walking view combines repeated geometry into spatial instance batches and rebuilds them after an edit. Fish use animated instance matrices with conservative school bounds. Offscreen kelp, schools, and jellyfish geometry skip animation work.
 - Pool wave height adds sine and cosine terms. Kelp uses a travelling sine wave with fixed roots. Fish follow `x = x₀ + R cos(ωt + φ)` and `z = z₀ + R sin(ωt + φ)`, face the tangent, and oscillate their tails. The source comments document the formulas for the graphics report.

@@ -6,6 +6,8 @@ Record completed changes here, with verification when it helps a future handoff.
 
 ### Added
 
+- Added a first-person campus drone mode with WASD, Shift boost, altitude controls, and synthesized directional rotor audio.
+
 - Added placement deck category filter tabs (**Buildings**, **Trees**, **Facilities**, **Doors**, and **All**) with dynamic badge counts, organizing stored campus items into distinct categories with an "All" overview and immediate filtering.
 - Added duplicate building stacking on the placement deck: multiple identical building duplicates collapse into a single card displaying a count badge (`×N`), while resized or altered buildings automatically generate distinct cards labeled with their exact dimensions and floor counts.
 - Added interactive perimeter wall slicing and deletion: users can toggle wall slice mode (`C` or the **Slice wall** button), slice any boundary wall segment at any chosen point along its length, select individual wall pieces with 3D highlight wireframes, and delete unwanted sections (e.g. at the main gate) via the delete button or `Delete`/`Backspace` key. Sliced and deleted walls instantly synchronize 3D perimeter geometry, player walking collision bounds, and minimap rendering, with full undo/redo and persistence.
@@ -43,6 +45,8 @@ Record completed changes here, with verification when it helps a future handoff.
 - Replaced building stretch transforms with metre-based footprints and whole-floor resizing. The building factory preserves opening dimensions, refits façade details, and rebuilds colliders.
 
 ### Verification
+
+- Checked drone pointer lock, altitude limits, left and right audio panning, return to walking, and touch ascent in Chromium. Both scenes built with Vite.
 
 - Verified deck category tabs and badge counts across Buildings (15), Trees (64), Facilities (44), Doors (0), and All (123) in headless Chromium, verifying real-time filtering, badge counts, and empty category handling.
 - Verified duplicate building stacking by exact dimension key (`${width}x${depth}-${floors}fl`), showing count multiplier badges on identical items and distinct cards on resized items.

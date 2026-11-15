@@ -29,6 +29,7 @@
       </svg>
       <span id="zone-code" hidden><span>ZONE A</span></span>
       <strong id="zone-name">Main Gate &amp; Front Garden</strong>
+      <output id="drone-altitude" aria-label="Drone altitude" hidden></output>
     </div>
     <div class="reticle" aria-hidden="true"></div>
 
@@ -73,6 +74,7 @@
           <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M7 10h6m-3-3 3 3-3 3"/></svg>
           Deep sea <kbd>P</kbd>
         </button>
+        <button type="button" class="scene-action" data-action="KeyF" aria-pressed="false" disabled>Drone <kbd>F</kbd></button>
       </div>
     </div>
     <div class="touch-drive" role="group" aria-label="On-screen movement">
@@ -80,6 +82,9 @@
       <button type="button" data-move="KeyA" aria-label="Walk left">←</button>
       <button type="button" data-move="KeyS" aria-label="Walk back">↓</button>
       <button type="button" data-move="KeyD" aria-label="Walk right">→</button>
+      <button type="button" class="drone-touch" data-move="ArrowUp" aria-label="Ascend">Rise</button>
+      <button type="button" class="drone-touch" data-move="ArrowDown" aria-label="Descend">Sink</button>
+      <button type="button" class="drone-touch" data-move="ShiftLeft" aria-label="Boost">Boost</button>
     </div>
     <button type="button" id="pause" class="pause-button" aria-label="Pause exploration">Ⅱ</button>
     <div class="notice" id="notice" role="status" hidden></div>

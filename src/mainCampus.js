@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { addLocalCollider, createCampusKit, floor, standard } from './buildingFactory.js';
 import { createCampusEditor } from './campusEditor.js';
+import { createDroneAudio } from './campusDroneAudio.js';
 import { closestOnEdge, insideLand, landExtent, nearestLandEdge } from './campusBoundary.js';
 import { renderCampusHero } from './campusHero.js';
 import { createPoolOpening, movePoolDependencies, readCampusLayout } from './campusLayout.js';
@@ -14,6 +15,8 @@ import { buildGroundPool } from './zoneC_GroundPool.js';
 const playerRadius = 0.29;
 const walkingSpeed = 5.15;
 const walkingBoost = 1.65;
+const droneCeiling = 80;
+const droneClimbSpeed = 7;
 const headingNames = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
 
 function buildWall(root, m, length, height) {
@@ -239,6 +242,12 @@ export async function startCampus() {
   const poolButton = checkpoints.find((button) => button.dataset.action === 'Digit4');
   const bearing = document.getElementById('bearing');
   const eyeHeight = map.coordinateSystem.eyeHeight;
+  const droneAudio = createDroneAudio();
+  const droneButton = document.querySelector('[data-action="KeyF"]');
+  const droneAltitude = document.getElementById('drone-altitude');
+  const obstacleBounds = new THREE.Box3();
+  let drone = false;
+  let obstacleTops = new WeakMap();
   let lastArea;
   let activeStop = null;
   let highlightedStop;
@@ -252,6 +261,7 @@ export async function startCampus() {
   }
 
   function updateHud() {
+    if (drone) droneAltitude.value = `Drone · ${camera.position.y.toFixed(1)} m`;
     const { x, z } = camera.position;
     const poolPlaced = kit.layout.objects.has('pool');
     const area = map.areas.find((region) => (region.stop !== '4' || poolPlaced)
@@ -301,7 +311,7 @@ export async function startCampus() {
       runtime.announce('This layout blocks the checkpoint. Move objects to clear a path.');
       return;
     }
-    camera.position.set(position[0], eyeHeight, position[1]);
+    camera.position.set(position[0], drone ? camera.position.y : eyeHeight, position[1]);
     camera.lookAt(...stop.lookAt);
     activeStop = stop.key;
     updateHud();
@@ -316,6 +326,7 @@ export async function startCampus() {
   });
 
   function saveLayout() {
+    obstacleTops = new WeakMap();
     const poolPlaced = kit.layout.objects.has('pool');
     opening.setEnabled(poolPlaced);
     if (!poolPlaced && activeStop === '4') activeStop = null;
@@ -336,7 +347,7 @@ export async function startCampus() {
     const { x, z } = camera.position;
     if (blocked(x, z, kit.colliders, map.boundary)) {
       const safe = walkableNear(x, z);
-      if (safe) camera.position.set(safe[0], eyeHeight, safe[1]);
+      if (safe) camera.position.set(safe[0], drone ? camera.position.y : eyeHeight, safe[1]);
       else runtime.announce('This layout blocks the campus. Open the editor to clear a path.');
     }
     updateHud();
@@ -365,12 +376,67 @@ export async function startCampus() {
     if (!editing) keepTourOnLand();
   }, saveLayout, persistLayout);
 
+  function toggleDrone() {
+    drone = !drone;
+    document.body.dataset.drone = String(drone);
+    document.body.dataset.briefing = 'compact';
+    droneButton.setAttribute('aria-pressed', String(drone));
+    droneAltitude.hidden = !drone;
+    if (drone) {
+      camera.position.y = THREE.MathUtils.clamp(camera.position.y, eyeHeight, droneCeiling);
+      droneAudio.start();
+    } else {
+      droneAudio.update(false);
+      camera.position.y = eyeHeight;
+      keepTourOnLand();
+    }
+    updateHud();
+  }
+
+  document.getElementById('start').addEventListener('click', () => {
+    if (drone) droneAudio.start();
+  });
+
+  function obstacleTop({ group }) {
+    if (!obstacleTops.has(group)) {
+      obstacleTops.set(group, obstacleBounds.setFromObject(group).max.y + playerRadius);
+    }
+    return obstacleTops.get(group);
+  }
+
+  function fly(dt, boosted) {
+    const x = Number(runtime.down('KeyD')) - Number(runtime.down('KeyA'));
+    const z = Number(runtime.down('KeyW')) - Number(runtime.down('KeyS'));
+    const climb = Number(runtime.down('ArrowUp')) - Number(runtime.down('ArrowDown'));
+    const speed = boosted ? walkingBoost : 1;
+    const pos = camera.position;
+    if (x || z || climb) activeStop = null;
+
+    if (climb) {
+      const nextY = THREE.MathUtils.clamp(pos.y + climb * droneClimbSpeed * speed * dt, eyeHeight, droneCeiling);
+      if (climb > 0 || !kit.colliders.some((obstacle) =>
+        pos.x > obstacle.minX - playerRadius && pos.x < obstacle.maxX + playerRadius
+        && pos.z > obstacle.minZ - playerRadius && pos.z < obstacle.maxZ + playerRadius
+        && nextY < obstacleTop(obstacle))) pos.y = nextY;
+    }
+    if (x || z) {
+      runtime.controls.getDirection(forward);
+      forward.y = 0;
+      forward.normalize();
+      right.set(-forward.z, 0, forward.x);
+      movement.copy(forward).multiplyScalar(z).addScaledVector(right, x).normalize().multiplyScalar(walkingSpeed * speed * dt);
+      const obstacles = kit.colliders.filter((obstacle) => pos.y < obstacleTop(obstacle));
+      walkWithCollision(pos, movement.x, movement.z, obstacles, map.boundary);
+    }
+    droneAudio.update(document.hasFocus(), x, z, climb, boosted);
+  }
+
   const stopActions = Object.fromEntries(map.stops.map((stop) => [`Digit${stop.key}`, () => {
     document.body.dataset.briefing = 'compact';
     if (stop.key === '4' && !kit.layout.objects.has('pool')) runtime.announce('Place the swimming pool from the deck to visit it.');
     else teleport(stop);
   }]));
-  runtime.ready({ ...weather.actions, ...stopActions, KeyP: dive, KeyO: dive, KeyE: editor.toggle });
+  runtime.ready({ ...weather.actions, ...stopActions, KeyP: dive, KeyO: dive, KeyE: editor.toggle, KeyF: toggleDrone });
   poolButton.disabled = !kit.layout.objects.has('pool');
   if (new URLSearchParams(location.search).has('editor')) {
     editor.toggle();
@@ -378,7 +444,10 @@ export async function startCampus() {
 
   runtime.loop((dt, time, view) => {
     editor.update();
-    if (runtime.active && !runtime.leaving) {
+    const roaming = runtime.active && !runtime.leaving;
+    if (roaming && drone) fly(dt, runtime.down('ShiftLeft', 'ShiftRight'));
+    else if (drone) droneAudio.update(false);
+    if (roaming && !drone) {
       const [x, z] = movementAxes(runtime);
       if (x || z) {
         activeStop = null;
