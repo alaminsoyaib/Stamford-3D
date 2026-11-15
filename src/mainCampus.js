@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { addLocalCollider, createCampusKit, floor, standard } from './buildingFactory.js';
 import { createCampusEditor } from './campusEditor.js';
-import { insideLand, landExtent, nearestLandEdge } from './campusBoundary.js';
+import { closestOnEdge, insideLand, landExtent, nearestLandEdge } from './campusBoundary.js';
 import { renderCampusHero } from './campusHero.js';
 import { createPoolOpening, movePoolDependencies, readCampusLayout } from './campusLayout.js';
 import { batchStaticMeshes, box, canvasTexture, createSceneryBatches, groupAt, seededRandom } from './sceneKit.js';
@@ -57,20 +57,6 @@ function buildCampusSite(scene, kit) {
     floor(legacyGround, m.deck, x + side * 17.7, 34.65, 35.45, 1.35, 0.014);
   }
 
-  function wall(side, x, z, length, yaw, street = false) {
-    const root = kit.prop(site, 'wall', `Perimeter wall · ${side}`, x, z, yaw);
-    buildWall(root, m, length, street ? 2.83 : 2.42);
-    addLocalCollider(kit.colliders, root, 0, 0, length, 0.55);
-  }
-  const centerX = (bounds.minX + bounds.maxX) / 2;
-  const centerZ = (bounds.minZ + bounds.maxZ) / 2;
-  wall('North', centerX, bounds.minZ, bounds.maxX - bounds.minX, 0);
-  wall('West', bounds.minX, centerZ, bounds.maxZ - bounds.minZ, Math.PI / 2);
-  wall('East', bounds.maxX, centerZ, bounds.maxZ - bounds.minZ, Math.PI / 2);
-  const left = map.gate.x - map.gate.opening / 2 - 0.56;
-  const right = map.gate.x + map.gate.opening / 2 + 0.56;
-  wall('Street west', (bounds.minX + left) / 2, bounds.maxZ, left - bounds.minX, 0, true);
-  wall('Street east', (right + bounds.maxX) / 2, bounds.maxZ, bounds.maxX - right, 0, true);
   batchStaticMeshes(legacyGround);
   for (const { root } of kit.layout.objects.values()) batchStaticMeshes(root);
 
@@ -105,32 +91,64 @@ function buildCampusSite(scene, kit) {
   return { legacyGround, city };
 }
 
-function createLandSurface(scene, site, map, opening, materials) {
+function createLandSurface(scene, site, map, opening, materials, kit) {
   const terrain = new THREE.Mesh(new THREE.BufferGeometry(), opening.terrain(materials.paving));
   const surround = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), opening.terrain(standard('#596459')));
   terrain.rotation.x = surround.rotation.x = -Math.PI / 2;
   surround.position.y = -0.045;
   terrain.receiveShadow = surround.receiveShadow = true;
   const perimeter = groupAt(scene, 'Automatic boundary walls', [0, 0, 0]);
+  kit.perimeter = perimeter;
   scene.add(surround, terrain);
-  let previous;
+  let previousCornersJson;
+  let previousWallsJson;
+
+  function syncPerimeter() {
+    perimeter.traverse((object) => { if (object.isInstancedMesh) object.dispose(); });
+    perimeter.clear();
+    const walls = map.boundary.walls ??= (map.boundary.points
+      ? map.boundary.points.map(([x, z], index) => {
+          const [nextX, nextZ] = map.boundary.points[(index + 1) % map.boundary.points.length];
+          return { id: `wall-${index + 1}`, a: [x, z], b: [nextX, nextZ] };
+        })
+      : [
+          { id: 'wall-north', a: [map.boundary.minX, map.boundary.minZ], b: [map.boundary.maxX, map.boundary.minZ] },
+          { id: 'wall-east', a: [map.boundary.maxX, map.boundary.minZ], b: [map.boundary.maxX, map.boundary.maxZ] },
+          { id: 'wall-street-east', a: [map.gate.x + map.gate.opening / 2 + 0.56, map.boundary.maxZ], b: [map.boundary.maxX, map.boundary.maxZ] },
+          { id: 'wall-street-west', a: [map.boundary.minX, map.boundary.maxZ], b: [map.gate.x - map.gate.opening / 2 - 0.56, map.boundary.maxZ] },
+          { id: 'wall-west', a: [map.boundary.minX, map.boundary.maxZ], b: [map.boundary.minX, map.boundary.minZ] }
+        ]);
+    if (!walls) return;
+    for (const seg of walls) {
+      const [x, z] = seg.a;
+      const [nextX, nextZ] = seg.b;
+      const len = Math.hypot(nextX - x, nextZ - z);
+      if (len < 0.1) continue;
+      const isStreet = seg.id.includes('street');
+      const root = groupAt(perimeter, `Perimeter wall · ${seg.id}`, [(x + nextX) / 2, 0, (z + nextZ) / 2],
+        Math.atan2(z - nextZ, nextX - x));
+      root.userData.wallSegment = seg;
+      root.userData.wallSegmentId = seg.id;
+      root.userData.layoutId = `wall:${seg.id}`;
+      buildWall(root, materials, len, isStreet ? 2.83 : 2.42);
+    }
+    batchStaticMeshes(perimeter);
+  }
+  kit.syncPerimeter = syncPerimeter;
+  syncPerimeter();
+
   return (editing) => {
     site.legacyGround.visible = !map.boundary.points;
     site.city.visible = !editing && !map.boundary.points;
     terrain.visible = surround.visible = Boolean(map.boundary.points);
-    if (previous === map.boundary) return;
-    previous = map.boundary;
-    perimeter.traverse((object) => { if (object.isInstancedMesh) object.dispose(); });
-    perimeter.clear();
-    if (!terrain.visible) return;
     const corners = map.boundary.points;
-    for (const [index, [x, z]] of corners.entries()) {
-      const [nextX, nextZ] = corners[(index + 1) % corners.length];
-      const root = groupAt(perimeter, 'Boundary edge', [(x + nextX) / 2, 0, (z + nextZ) / 2],
-        Math.atan2(z - nextZ, nextX - x));
-      buildWall(root, materials, Math.hypot(nextX - x, nextZ - z), 2.42);
-    }
-    batchStaticMeshes(perimeter);
+    const currentCornersJson = JSON.stringify(corners);
+    const currentWallsJson = JSON.stringify(map.boundary.walls);
+    if (previousCornersJson === currentCornersJson && previousWallsJson === currentWallsJson) return;
+    previousCornersJson = currentCornersJson;
+    previousWallsJson = currentWallsJson;
+    syncPerimeter();
+    if (!terrain.visible) return;
     const points = corners.map(([x, z]) => new THREE.Vector2(x, -z));
     const geometry = new THREE.ShapeGeometry(new THREE.Shape(points));
     const positions = geometry.attributes.position;
@@ -147,9 +165,18 @@ function createLandSurface(scene, site, map, opening, materials) {
 }
 
 function blocked(x, z, colliders, bounds) {
-  // Custom walls follow diagonal edges, so use distance to the polygon instead of a wide AABB.
-  const wallInset = bounds.points ? 0.32 : 0;
-  if (!insideLand(bounds, x, z, playerRadius + wallInset, true)) return true;
+  if (bounds.walls && bounds.walls.length) {
+    for (const seg of bounds.walls) {
+      const [edgeX, edgeZ] = closestOnEdge(x, z, seg.a, seg.b);
+      const distSq = (edgeX - x) ** 2 + (edgeZ - z) ** 2;
+      if (distSq < (playerRadius + 0.22) ** 2) return true;
+    }
+  } else {
+    const wallInset = bounds.points ? 0.32 : 0;
+    if (!insideLand(bounds, x, z, playerRadius + wallInset, true)) return true;
+  }
+  const { minX, maxX, minZ, maxZ, streetZ } = landExtent(bounds);
+  if (x < minX - 35 || x > maxX + 35 || z < minZ - 35 || z > (streetZ || maxZ) + 40) return true;
   return colliders.some(({ minX, maxX, minZ, maxZ }) =>
     x > minX - playerRadius && x < maxX + playerRadius && z > minZ - playerRadius && z < maxZ + playerRadius);
 }
@@ -200,7 +227,7 @@ export async function startCampus() {
   });
   kit.applyVisibility();
   scenery.setEditing(false);
-  const syncLand = createLandSurface(scene, site, map, opening, kit.materials);
+  const syncLand = createLandSurface(scene, site, map, opening, kit.materials, kit);
   syncLand(false);
   opening.setEnabled(kit.layout.objects.has('pool'));
   let plotMap = makeMinimap(map);

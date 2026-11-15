@@ -116,6 +116,7 @@
           <button type="button" data-editor-mode="translate" aria-pressed="true" disabled>Move <kbd>G</kbd></button>
           <button type="button" data-editor-mode="rotate" aria-pressed="false" disabled>Rotate <kbd>R</kbd></button>
           <button type="button" data-editor-mode="scale" aria-pressed="false" disabled>Scale <kbd>S</kbd></button>
+          <button type="button" id="editor-slice" aria-pressed="false" title="Slice perimeter wall (C)">Slice wall <kbd>C</kbd></button>
         </div>
         <fieldset id="editor-fields" disabled>
           <legend>Transform</legend>
@@ -130,6 +131,14 @@
             <label id="editor-door-offset" hidden>Along wall (m)<input data-transform="door" type="number" step="any"></label>
           </div>
           <output id="editor-size-detail" class="editor-size-detail" hidden></output>
+        </fieldset>
+        <fieldset id="editor-wall-fields" hidden>
+          <legend>Perimeter Wall Segment</legend>
+          <p id="editor-wall-length" class="editor-placement"></p>
+          <div class="editor-actions">
+            <button type="button" id="editor-wall-delete" class="editor-danger">Delete wall segment</button>
+            <button type="button" id="editor-wall-reset">Reset all walls</button>
+          </div>
         </fieldset>
       </div>
       <div id="editor-land" hidden>
@@ -176,6 +185,13 @@
           <button type="button" id="editor-clear">Clear to deck</button>
         </div>
       </div>
+      <nav id="editor-deck-categories" class="editor-deck-categories" role="tablist" aria-label="Deck categories" hidden>
+        <button type="button" role="tab" data-deck-category="buildings" aria-selected="true" class="is-active">Buildings <span class="editor-deck-badge" data-category-count="buildings">0</span></button>
+        <button type="button" role="tab" data-deck-category="trees" aria-selected="false">Trees <span class="editor-deck-badge" data-category-count="trees">0</span></button>
+        <button type="button" role="tab" data-deck-category="facilities" aria-selected="false">Facilities <span class="editor-deck-badge" data-category-count="facilities">0</span></button>
+        <button type="button" role="tab" data-deck-category="doors" aria-selected="false">Doors <span class="editor-deck-badge" data-category-count="doors">0</span></button>
+        <button type="button" role="tab" data-deck-category="all" aria-selected="false">All <span class="editor-deck-badge" data-category-count="all">0</span></button>
+      </nav>
       <div id="editor-deck-list" class="editor-deck-list" aria-label="Stored objects" hidden></div>
       <div id="editor-feedback" class="editor-feedback" role="status" hidden></div>
     </section>

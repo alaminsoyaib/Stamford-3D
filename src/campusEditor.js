@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import { maxBuildingFloors, maxBuildingSpan } from './buildingFactory.js';
 import { limitScale, rounded, validateCampusLayout } from './campusLayout.js';
-import { fitsLand, insideLand, landExtent } from './campusBoundary.js';
+import { closestOnEdge, fitsLand, insideLand, landExtent } from './campusBoundary.js';
 import { createDeckDrag } from './campusDeckDrag.js';
 import { createDeckPreviews } from './campusDeckPreviews.js';
 import { createLandEditor } from './campusLandEditor.js';
@@ -44,6 +44,13 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
   const importApply = document.getElementById('editor-import-apply');
   const importCancel = document.getElementById('editor-import-cancel');
   const picker = document.getElementById('editor-object');
+  const sliceButton = panel.querySelector('#editor-slice');
+  const wallFields = panel.querySelector('#editor-wall-fields');
+  const wallLength = panel.querySelector('#editor-wall-length');
+  const wallDelete = panel.querySelector('#editor-wall-delete');
+  const wallReset = panel.querySelector('#editor-wall-reset');
+  const deckCategories = document.getElementById('editor-deck-categories');
+  const categoryButtons = [...(deckCategories?.querySelectorAll('[data-deck-category]') ?? [])];
   const fields = [...panel.querySelectorAll('[data-transform]')];
   const sizeLabels = [...panel.querySelectorAll('[data-size-label]')];
   const tools = [...panel.querySelectorAll('[data-editor-mode]')];
@@ -86,6 +93,33 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
   let resizeQueued = false;
   let lastResize = 0;
   let beforeEdit = null;
+  let activeDeckCategory = 'buildings';
+  let sliceMode = false;
+  let selectedWall = null;
+
+  const sliceMarker = new THREE.Group();
+  const markerBar = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.08, 0.08, 2.8, 8),
+    new THREE.MeshBasicMaterial({ color: 0x00f0ff, depthTest: false })
+  );
+  markerBar.position.y = 1.4;
+  const markerCap = new THREE.Mesh(
+    new THREE.SphereGeometry(0.22, 12, 8),
+    new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false })
+  );
+  markerCap.position.y = 2.8;
+  sliceMarker.add(markerBar, markerCap);
+  sliceMarker.visible = false;
+  sliceMarker.renderOrder = 999;
+  scene.add(sliceMarker);
+
+  const wallHighlight = new THREE.Mesh(
+    new THREE.BoxGeometry(1, 2.5, 0.48),
+    new THREE.MeshBasicMaterial({ color: 0x38bdf8, wireframe: true, depthTest: false })
+  );
+  wallHighlight.visible = false;
+  wallHighlight.renderOrder = 998;
+  scene.add(wallHighlight);
   const land = createLandEditor(scene, panel, kit.map, {
     input: () => Number(grid.value), commit: commitBoundary, message,
     onMode(value) {
@@ -220,9 +254,10 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
   }
 
   function select(entry) {
+    if (entry) selectWall(null);
     selected = entry;
     picker.value = entry?.id ?? '';
-    panel.querySelector('#editor-object-panel').dataset.selected = String(Boolean(entry));
+    panel.querySelector('#editor-object-panel').dataset.selected = String(Boolean(entry || selectedWall));
     outline.visible = Boolean(entry);
     document.getElementById('editor-focus').disabled = !entry;
     const fieldset = document.getElementById('editor-fields');
@@ -237,6 +272,155 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
       gizmo.detach();
     }
     updateFields();
+  }
+
+  function selectWall(seg) {
+    selectedWall = seg;
+    if (seg) {
+      select(null);
+      gizmo.detach();
+      const [x1, z1] = seg.a;
+      const [x2, z2] = seg.b;
+      const len = Math.hypot(x2 - x1, z2 - z1);
+      wallHighlight.position.set((x1 + x2) / 2, 1.25, (z1 + z2) / 2);
+      wallHighlight.rotation.y = Math.atan2(z1 - z2, x2 - x1);
+      wallHighlight.scale.set(len + 0.1, 1, 1);
+      wallHighlight.visible = true;
+      if (wallFields) wallFields.hidden = false;
+      if (wallLength) wallLength.textContent = `Length: ${len.toFixed(1)} m · From [${seg.a.map(rounded).join(', ')}] to [${seg.b.map(rounded).join(', ')}]`;
+      panel.querySelector('#editor-object-panel').dataset.selected = 'true';
+      picker.value = '';
+    } else {
+      wallHighlight.visible = false;
+      if (wallFields) wallFields.hidden = true;
+      if (!selected) panel.querySelector('#editor-object-panel').dataset.selected = 'false';
+    }
+  }
+
+  function pickWall(event) {
+    pointRay(event);
+    if (kit.perimeter) {
+      const hits = ray.intersectObjects(kit.perimeter.children, true);
+      for (const hit of hits) {
+        let node = hit.object;
+        while (node && !node.userData.wallSegment) node = node.parent;
+        if (node?.userData.wallSegment) {
+          return { hit, segment: node.userData.wallSegment };
+        }
+      }
+    }
+    if (landPoint(event) && kit.map.boundary.walls) {
+      for (const seg of kit.map.boundary.walls) {
+        const [cx, cz] = closestOnEdge(groundPoint.x, groundPoint.z, seg.a, seg.b);
+        if (Math.hypot(groundPoint.x - cx, groundPoint.z - cz) < 1.2) {
+          return { hit: { point: new THREE.Vector3(cx, 0, cz) }, segment: seg };
+        }
+      }
+    }
+    return null;
+  }
+
+  function sliceWallSegment(segment, cutPoint) {
+    const walls = kit.map.boundary.walls ??= (kit.map.boundary.points
+      ? kit.map.boundary.points.map(([x, z], i) => ({
+          id: `wall-${i + 1}`,
+          a: [x, z],
+          b: kit.map.boundary.points[(i + 1) % kit.map.boundary.points.length]
+        }))
+      : []);
+    const index = walls.findIndex((s) => s.id === segment.id);
+    if (index === -1) return;
+    const seg1 = { id: `wall-${Date.now()}-1`, a: [...segment.a], b: [...cutPoint] };
+    const seg2 = { id: `wall-${Date.now()}-2`, a: [...cutPoint], b: [...segment.b] };
+    walls.splice(index, 1, seg1, seg2);
+    kit.syncPerimeter?.();
+    selectWall(seg2);
+    record({
+      undo: () => {
+        const idx1 = walls.findIndex((s) => s.id === seg1.id);
+        if (idx1 !== -1) walls.splice(idx1, 2, segment);
+        kit.syncPerimeter?.();
+        selectWall(null);
+      },
+      redo: () => {
+        const idx = walls.findIndex((s) => s.id === segment.id);
+        if (idx !== -1) walls.splice(idx, 1, seg1, seg2);
+        kit.syncPerimeter?.();
+        selectWall(seg2);
+      }
+    });
+    onLayoutChange();
+    message(`Sliced wall at (${cutPoint[0]}, ${cutPoint[1]}). Press Delete to remove selected segment.`);
+  }
+
+  function deleteSelectedWall() {
+    if (!selectedWall || !kit.map.boundary.walls) return;
+    const segment = selectedWall;
+    const walls = kit.map.boundary.walls;
+    const index = walls.findIndex((s) => s.id === segment.id);
+    if (index === -1) return;
+    walls.splice(index, 1);
+    kit.syncPerimeter?.();
+    selectWall(null);
+    record({
+      undo: () => {
+        walls.splice(index, 0, segment);
+        kit.syncPerimeter?.();
+        selectWall(segment);
+      },
+      redo: () => {
+        const idx = walls.findIndex((s) => s.id === segment.id);
+        if (idx !== -1) walls.splice(idx, 1);
+        kit.syncPerimeter?.();
+        selectWall(null);
+      }
+    });
+    onLayoutChange();
+    message('Wall segment deleted.');
+  }
+
+  function resetPerimeterWalls() {
+    const previousWalls = kit.map.boundary.walls ? structuredClone(kit.map.boundary.walls) : null;
+    if (kit.map.boundary.points) {
+      const corners = kit.map.boundary.points;
+      kit.map.boundary.walls = corners.map(([x, z], i) => ({
+        id: `wall-${i + 1}`,
+        a: [x, z],
+        b: corners[(i + 1) % corners.length]
+      }));
+    } else {
+      delete kit.map.boundary.walls;
+    }
+    kit.syncPerimeter?.();
+    selectWall(null);
+    record({
+      undo: () => {
+        if (previousWalls) kit.map.boundary.walls = structuredClone(previousWalls);
+        else delete kit.map.boundary.walls;
+        kit.syncPerimeter?.();
+      },
+      redo: () => {
+        resetPerimeterWalls();
+      }
+    });
+    onLayoutChange();
+    message('Perimeter walls reset to boundary outline.');
+  }
+
+  function setSliceMode(value) {
+    sliceMode = Boolean(value);
+    if (sliceButton) sliceButton.setAttribute('aria-pressed', String(sliceMode));
+    if (sliceMode) {
+      document.body.dataset.editorSlice = 'true';
+      select(null);
+      selectWall(null);
+      gizmo.detach();
+      setPlacement(null);
+      message('Click along any boundary wall to slice it into segments.');
+    } else {
+      delete document.body.dataset.editorSlice;
+      sliceMarker.visible = false;
+    }
   }
 
   function refreshEntry(entry) {
@@ -571,6 +755,10 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
       consume(event);
       return;
     }
+    if (sliceMode) {
+      pointer = { id: event.pointerId, x: event.clientX, y: event.clientY, captured: false };
+      return;
+    }
     if (!event.isPrimary) {
       if (pointer?.captured) consume(event);
       else pointer = null;
@@ -612,6 +800,17 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
 
   function movePointer(event) {
     showPlacement(event);
+    if (sliceMode) {
+      const hitData = pickWall(event);
+      if (hitData) {
+        const { hit, segment } = hitData;
+        const [cx, cz] = closestOnEdge(hit.point.x, hit.point.z, segment.a, segment.b);
+        sliceMarker.position.set(snap(cx), 0, snap(cz));
+        sliceMarker.visible = true;
+      } else {
+        sliceMarker.visible = false;
+      }
+    }
     if (event.pointerId !== pointer?.id || !pointer.captured) return;
     consume(event);
     if (!pointer.dragging && Math.hypot(event.clientX - pointer.x, event.clientY - pointer.y) <= 5) return;
@@ -649,6 +848,23 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
     }
     delete document.body.dataset.editorDrag;
     deck.classList.remove('drop-target');
+    if (cancelled || moved) return;
+    if (sliceMode) {
+      const hitData = pickWall(event);
+      if (hitData) {
+        const { hit, segment } = hitData;
+        const [cx, cz] = closestOnEdge(hit.point.x, hit.point.z, segment.a, segment.b);
+        const cutPoint = [rounded(snap(cx)), rounded(snap(cz))];
+        const distA = Math.hypot(cutPoint[0] - segment.a[0], cutPoint[1] - segment.a[1]);
+        const distB = Math.hypot(cutPoint[0] - segment.b[0], cutPoint[1] - segment.b[1]);
+        if (distA > 0.3 && distB > 0.3) {
+          sliceWallSegment(segment, cutPoint);
+        } else {
+          message('Click further away from wall corners to slice.');
+        }
+      }
+      return;
+    }
     if (current.entry && current.dragging) {
       const over = !cancelled && overDeck(event);
       if (cancelled || over) {
@@ -667,7 +883,14 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
     if (placement) place(event);
     else if (land.active && current.corner < 0 && landPoint(event)) {
       land.add([snap(groundPoint.x), snap(groundPoint.z)], camera, canvas.getBoundingClientRect());
-    } else if (!land.active && !current.entry) select(pick(event));
+    } else if (!land.active && !current.entry) {
+      const wallHit = pickWall(event);
+      if (wallHit) {
+        selectWall(wallHit.segment);
+      } else {
+        select(pick(event));
+      }
+    }
     if (!land.active && !placement) canvas.focus({ preventScroll: true });
   }
 
@@ -702,6 +925,8 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
       setPlacement();
       land.end();
       select(null);
+      selectWall(null);
+      setSliceMode(false);
       document.body.dataset.briefing = 'compact';
       document.querySelector('[data-action="KeyE"]').focus({ preventScroll: true });
       if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('editor')) {
@@ -741,6 +966,19 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
     onLayoutChange();
   }
 
+  function recordCategory(entry) {
+    if (entry.buildingId) return 'doors';
+    const id = entry.id || '';
+    const label = (entry.label || '').toLowerCase();
+    if (entry.spec?.type === 'tree' || id.startsWith('added-tree') || id.startsWith('tree:') || /\b(tree|trees|palm|plant|flower|shrub|banyan)\b/i.test(label)) {
+      return 'trees';
+    }
+    if (entry.building || entry.spec?.type === 'building' || id.startsWith('added-building') || kit.map.buildings?.[entry.id]) {
+      return 'buildings';
+    }
+    return 'facilities';
+  }
+
   function deckModel(entry) {
     const template = entry.spec?.template;
     const source = template ? entries.get(template) ?? parked.get(template)?.entry : entry;
@@ -750,8 +988,16 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
       const host = entries.get(entry.buildingId) ?? parked.get(entry.buildingId)?.entry;
       return [`door:${entry.buildingId}`, host ? `Door · ${host.label}` : 'Door'];
     }
-    if (!template && entry.spec?.type === 'building') return ['added-building', 'Building'];
-    if (!template && entry.spec?.type === 'tree') return ['added-tree', 'Tree'];
+    if (entry.building || entry.spec?.type === 'building' || kit.map.buildings?.[entry.id]) {
+      const width = Number((entry.spec?.width ?? 10).toFixed(1));
+      const depth = Number((entry.spec?.depth ?? 8).toFixed(1));
+      const floors = entry.spec?.floors ?? 1;
+      const baseId = template ?? (entry.spec?.type === 'building' ? 'building' : id.split(':')[0]);
+      const dimKey = `${width}x${depth}-${floors}fl`;
+      const dimLabel = `${label} (${width}×${depth} m · ${floors} fl)`;
+      return [`building:${baseId}:${dimKey}`, dimLabel];
+    }
+    if (!template && (entry.spec?.type === 'tree' || entry.id.startsWith('added-tree'))) return ['added-tree', 'Tree'];
     return [`${id.split(':')[0]}:${label}`, label];
   }
 
@@ -759,8 +1005,30 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
     if (deckDrag.busy) deckDrag.cancel();
     const list = [...parked.values()].sort((a, b) => a.entry.label.localeCompare(b.entry.label));
     const query = deckSearch.value.trim().toLocaleLowerCase();
-    const stacks = new Map();
+
+    const categoryCounts = {
+      buildings: 0,
+      trees: 0,
+      facilities: 0,
+      doors: 0,
+      all: list.length
+    };
     for (const record of list) {
+      const cat = recordCategory(record.entry);
+      if (categoryCounts[cat] !== undefined) categoryCounts[cat]++;
+    }
+    for (const [cat, count] of Object.entries(categoryCounts)) {
+      const badge = deck.querySelector(`[data-category-count="${cat}"]`);
+      if (badge) badge.textContent = String(count);
+    }
+    if (deckCategories) deckCategories.hidden = !list.length;
+
+    const filteredCategoryList = activeDeckCategory === 'all'
+      ? list
+      : list.filter((r) => recordCategory(r.entry) === activeDeckCategory);
+
+    const stacks = new Map();
+    for (const record of filteredCategoryList) {
       const [key, label] = deckModel(record.entry);
       if (!stacks.has(key)) stacks.set(key, { label, records: [] });
       stacks.get(key).records.push(record);
@@ -825,7 +1093,7 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
     }
     if (list.length && !matches.length) {
       const noResults = document.createElement('p');
-      noResults.textContent = 'No matching stored objects.';
+      noResults.textContent = query ? 'No matching stored objects.' : 'No stored objects in this category.';
       cards.append(noResults);
     }
     deckCount.value = String(list.length);
@@ -984,9 +1252,17 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
     }
     const previous = kit.map.boundary;
     kit.map.boundary = boundary;
+    if (boundary.points) {
+      boundary.walls = boundary.points.map(([x, z], i) => ({
+        id: `wall-${i + 1}`,
+        a: [x, z],
+        b: boundary.points[(i + 1) % boundary.points.length]
+      }));
+    }
+    kit.syncPerimeter?.();
     record({
-      undo() { kit.map.boundary = previous; resize(); },
-      redo() { kit.map.boundary = boundary; resize(); }
+      undo() { kit.map.boundary = previous; kit.syncPerimeter?.(); resize(); },
+      redo() { kit.map.boundary = boundary; kit.syncPerimeter?.(); resize(); }
     });
     onLayoutChange();
     resize();
@@ -1013,6 +1289,20 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
   undoButton.addEventListener('click', () => stepHistory(false));
   redoButton.addEventListener('click', () => stepHistory(true));
   grid.addEventListener('change', () => land.refresh());
+  for (const button of categoryButtons) {
+    button.addEventListener('click', () => {
+      activeDeckCategory = button.dataset.deckCategory;
+      for (const btn of categoryButtons) {
+        const isMatch = btn.dataset.deckCategory === activeDeckCategory;
+        btn.setAttribute('aria-selected', String(isMatch));
+        btn.classList.toggle('is-active', isMatch);
+      }
+      refreshDeck();
+    });
+  }
+  if (sliceButton) sliceButton.addEventListener('click', () => setSliceMode(!sliceMode));
+  if (wallDelete) wallDelete.addEventListener('click', deleteSelectedWall);
+  if (wallReset) wallReset.addEventListener('click', resetPerimeterWalls);
   deckSearch.addEventListener('input', () => {
     deckList.scrollLeft = 0;
     refreshDeck();
@@ -1212,13 +1502,31 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
       else duplicateSelection();
       return;
     }
+    if (event.code === 'KeyC' && !editingText && !event.ctrlKey && !event.metaKey) {
+      event.preventDefault();
+      setSliceMode(!sliceMode);
+      return;
+    }
     if (event.code === 'Escape') {
       event.preventDefault();
       if (deckDrag.cancel()) return;
+      if (sliceMode) {
+        setSliceMode(false);
+        return;
+      }
+      if (selectedWall) {
+        selectWall(null);
+        return;
+      }
       if (pointer?.captured) endPointer({ pointerId: pointer.id, type: 'lostpointercapture' }, true);
       else if (placement) setPlacement();
       else if (land.active) land.end();
       else toggle();
+      return;
+    }
+    if (selectedWall && !editingText && (event.key === 'Delete' || event.key === 'Backspace')) {
+      event.preventDefault();
+      if (!event.repeat) deleteSelectedWall();
       return;
     }
     if (land.active && !editingText && (event.key === 'Delete' || event.key === 'Backspace')) {
