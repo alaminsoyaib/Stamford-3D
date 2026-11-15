@@ -727,15 +727,39 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
     onLayoutChange();
   }
 
+  function deckModel(entry) {
+    const template = entry.spec?.template;
+    const source = template ? entries.get(template) ?? parked.get(template)?.entry : entry;
+    const id = template ?? entry.id;
+    const label = source?.spec?.copyLabel ?? source?.label ?? entry.spec?.copyLabel ?? entry.label;
+    if (entry.buildingId) {
+      const host = entries.get(entry.buildingId) ?? parked.get(entry.buildingId)?.entry;
+      return [`door:${entry.buildingId}`, host ? `Door · ${host.label}` : 'Door'];
+    }
+    if (!template && entry.spec?.type === 'building') return ['added-building', 'Building'];
+    if (!template && entry.spec?.type === 'tree') return ['added-tree', 'Tree'];
+    return [`${id.split(':')[0]}:${label}`, label];
+  }
+
   function refreshDeck() {
     if (deckDrag.busy) deckDrag.cancel();
     const list = [...parked.values()].sort((a, b) => a.entry.label.localeCompare(b.entry.label));
     const query = deckSearch.value.trim().toLocaleLowerCase();
-    const matches = list.filter(({ entry }) => entry.label.toLocaleLowerCase().includes(query));
+    const stacks = new Map();
+    for (const record of list) {
+      const [key, label] = deckModel(record.entry);
+      if (!stacks.has(key)) stacks.set(key, { label, records: [] });
+      stacks.get(key).records.push(record);
+    }
+    const matches = [...stacks.values()].filter(({ label, records }) =>
+      label.toLocaleLowerCase().includes(query)
+        || records.some(({ entry }) => entry.label.toLocaleLowerCase().includes(query)));
     const scroll = deckList.scrollLeft;
     previews.reset();
     const cards = document.createDocumentFragment();
-    for (const record of matches) {
+    for (const { label, records } of matches) {
+      const record = records.find(({ entry }) => entry === placement?.entry)
+        ?? records.find(kit.canRestore) ?? records[0];
       const { entry } = record;
       const card = document.createElement('div');
       card.className = 'editor-card';
@@ -746,14 +770,21 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
       tile.className = 'editor-card-preview';
       const caption = document.createElement('span');
       caption.className = 'editor-card-caption';
-      caption.textContent = entry.label;
+      caption.textContent = records.length > 1 ? label : entry.label;
       placeButton.append(tile, caption);
+      if (records.length > 1) {
+        const quantity = document.createElement('span');
+        quantity.className = 'editor-stack-count';
+        quantity.textContent = `×${records.length}`;
+        quantity.setAttribute('aria-hidden', 'true');
+        placeButton.append(quantity);
+      }
       placeButton.title = entry.label;
       if (!entry.buildingId) {
         const { x, z } = entry.root.position;
         placeButton.title += ` · ${rounded(x)}, ${rounded(z)} m`;
       }
-      placeButton.setAttribute('aria-label', `Place ${entry.label}`);
+      placeButton.setAttribute('aria-label', `Place ${entry.label}${records.length > 1 ? `, ${records.length} in stack` : ''}`);
       placeButton.setAttribute('aria-pressed', String(placement?.kind === 'stored' && placement.entry === entry));
       placeButton.dataset.stored = entry.id;
       placeButton.disabled = !kit.canRestore(record);

@@ -679,6 +679,17 @@ kbd {
   font-size: 11px;
   line-height: 1.25;
 }
+.editor-stack-count {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: #101e31;
+  color: var(--fg);
+  font-size: 11px;
+  font-weight: 700;
+}
 .editor-card .editor-card-delete {
   position: absolute;
   top: 5px;
@@ -719,6 +730,7 @@ kbd {
 .editor-land-summary { display: flex; justify-content: space-between; align-items: baseline; color: var(--muted); }
 #editor-land-size { color: var(--fg); font-size: 18px; font-weight: 700; }
 #editor-land .editor-values { grid-template-columns: 1fr 1fr; }
+.editor-land-scale { align-items: end; margin-top: 8px; }
 .editor-save { margin-top: 10px; }
 .editor-placement, .editor-size-detail { color: var(--accent); font-size: 11px; line-height: 1.4; }
 .editor-placement { margin: 5px 0 8px; }

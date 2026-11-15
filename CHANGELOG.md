@@ -6,6 +6,10 @@ Record completed changes here, with verification when it helps a future handoff.
 
 ### Added
 
+- Added uniform boundary scaling and counted deck stacks for matching items. Each drag or deletion uses one piece from the stack.
+
+- Added automatic perimeter walls for the Stamford preset and custom land outlines. Applying, undoing, or reloading an outline rebuilds its walls.
+
 - Added direct object dragging with grid snapping, a searchable placement deck, building and prop duplication, and an undoable **Clear to deck** action. Stored buildings retain their doors, and the pool retains its portal.
 - Added a land boundary tool for drawing and reshaping a polygon. The applied outline drives terrain, placement, walking, and the minimap. Browser saves and JSON export include the outline and deck.
 - Added an empty Stamford campus preset traced from the supplied Google Maps measurement. Loading it applies the outline and puts placed pieces in the deck as one undoable action.
@@ -33,6 +37,10 @@ Record completed changes here, with verification when it helps a future handoff.
 - Replaced building stretch transforms with metre-based footprints and whole-floor resizing. The building factory preserves opening dimensions, refits façade details, and rebuilds colliders.
 
 ### Verification
+
+- Checked 150% boundary scaling, undo and redo, duplicate tree stacking, single-piece placement and deletion, and reload in Chromium. Both pages built with Vite.
+
+- Checked automatic wall updates on preset load, undo, redo, and page reload in Chromium. Both pages built with Vite.
 
 - Verified preset loading on desktop and touch, one-step undo and redo, placement limits, JSON export and reload, and both physical portal crossings after placing the pool on the new outline.
 - Checked the tray on desktop and narrow screens. Verified model thumbnails, on-demand rendering, mouse and touch placement, horizontal swiping, undo, and desktop pointer lock. Both pages built with Vite.

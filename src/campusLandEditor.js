@@ -11,6 +11,8 @@ export function createLandEditor(scene, panel, map, { input, commit, message, on
   const coordinateZ = panel.querySelector('#editor-land-z');
   const remove = panel.querySelector('#editor-land-remove');
   const apply = panel.querySelector('#editor-land-apply');
+  const scale = form.querySelector('#editor-land-scale');
+  const rescale = form.querySelector('#editor-land-rescale');
   const instructions = panel.querySelector('#editor-land-help');
   const grid = new THREE.GridHelper(1, 2, 0x4a7091, 0x415c73);
   const border = new THREE.LineLoop(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({
@@ -79,6 +81,7 @@ export function createLandEditor(scene, panel, map, { input, commit, message, on
     instructions.textContent = valid ? 'Drag a corner or click to add one.'
       : points.length < 3 ? 'Place at least three corners.' : 'Use an outline with area and no crossing edges.';
     apply.disabled = !valid;
+    scale.disabled = rescale.disabled = !points || !valid;
     remove.disabled = !points || points.length <= 3 || corner < 0;
     coordinateX.disabled = coordinateZ.disabled = !current;
     coordinateX.value = current?.[0] ?? '';
@@ -88,6 +91,7 @@ export function createLandEditor(scene, panel, map, { input, commit, message, on
 
   function begin(redraw = false) {
     points = redraw ? [] : structuredClone(landCorners(map.boundary));
+    scale.value = '100';
     corner = -1;
     form.hidden = false;
     panel.querySelector('#editor-object-panel').hidden = true;
@@ -176,11 +180,39 @@ export function createLandEditor(scene, panel, map, { input, commit, message, on
     refresh();
   }
 
+  function scaleOutline() {
+    const factor = scale.valueAsNumber / 100;
+    if (!Number.isFinite(factor) || factor <= 0) {
+      message('Enter a positive boundary scale.');
+      return;
+    }
+    if (!points || !valid || factor === 1) return;
+    const { minX, maxX, minZ, maxZ } = landExtent({ points });
+    const centerX = (minX + maxX) / 2;
+    const centerZ = (minZ + maxZ) / 2;
+    const scaled = points.map(([x, z]) => [
+      rounded(centerX + (x - centerX) * factor), rounded(centerZ + (z - centerZ) * factor)
+    ]);
+    if (!validLandOutline(scaled)) {
+      message('That scale would make the outline invalid.');
+      return;
+    }
+    points = scaled;
+    scale.value = '100';
+    refresh();
+  }
+
   toggle.addEventListener('click', () => { if (points) end(); else begin(); });
   form.querySelector('#editor-land-redraw').addEventListener('click', () => begin(true));
   form.querySelector('#editor-land-cancel').addEventListener('click', end);
   apply.addEventListener('click', save);
   remove.addEventListener('click', deleteCorner);
+  rescale.addEventListener('click', scaleOutline);
+  scale.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    scaleOutline();
+  });
   for (const field of [coordinateX, coordinateZ]) {
     field.addEventListener('change', () => {
       const point = [coordinateX.valueAsNumber, coordinateZ.valueAsNumber];

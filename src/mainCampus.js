@@ -16,6 +16,18 @@ const walkingSpeed = 5.15;
 const walkingBoost = 1.65;
 const headingNames = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
 
+function buildWall(root, m, length, height) {
+  box(root, m.library, [length, height, 0.38], [0, height / 2, 0]);
+  box(root, m.brick, [length, 0.38, 0.43], [0, 0.19, 0]);
+  box(root, m.concrete, [length, 0.15, 0.49], [0, height + 0.065, 0]);
+  const bays = Math.ceil(length / 6.8);
+  for (let index = 0; index <= bays; index++) {
+    const px = Math.max(0, length - 0.36) * (index / bays - 0.5);
+    box(root, m.brick, [0.41, height + 0.21, 0.54], [px, (height + 0.21) / 2, 0]);
+    box(root, m.concrete, [0.54, 0.12, 0.64], [px, height + 0.19, 0]);
+  }
+}
+
 function buildCampusSite(scene, kit) {
   const { map, materials: m } = kit;
   const bounds = map.boundary;
@@ -47,16 +59,7 @@ function buildCampusSite(scene, kit) {
 
   function wall(side, x, z, length, yaw, street = false) {
     const root = kit.prop(site, 'wall', `Perimeter wall · ${side}`, x, z, yaw);
-    const height = street ? 2.83 : 2.42;
-    box(root, m.library, [length, height, 0.38], [0, height / 2, 0]);
-    box(root, m.brick, [length, 0.38, 0.43], [0, 0.19, 0]);
-    box(root, m.concrete, [length, 0.15, 0.49], [0, height + 0.065, 0]);
-    const bays = Math.ceil(length / 6.8);
-    for (let index = 0; index <= bays; index++) {
-      const px = (length - 0.36) * (index / bays - 0.5);
-      box(root, m.brick, [0.41, height + 0.21, 0.54], [px, (height + 0.21) / 2, 0]);
-      box(root, m.concrete, [0.54, 0.12, 0.64], [px, height + 0.19, 0]);
-    }
+    buildWall(root, m, length, street ? 2.83 : 2.42);
     addLocalCollider(kit.colliders, root, 0, 0, length, 0.55);
   }
   const centerX = (bounds.minX + bounds.maxX) / 2;
@@ -108,6 +111,7 @@ function createLandSurface(scene, site, map, opening, materials) {
   terrain.rotation.x = surround.rotation.x = -Math.PI / 2;
   surround.position.y = -0.045;
   terrain.receiveShadow = surround.receiveShadow = true;
+  const perimeter = groupAt(scene, 'Automatic boundary walls', [0, 0, 0]);
   scene.add(surround, terrain);
   let previous;
   return (editing) => {
@@ -116,8 +120,18 @@ function createLandSurface(scene, site, map, opening, materials) {
     terrain.visible = surround.visible = Boolean(map.boundary.points);
     if (previous === map.boundary) return;
     previous = map.boundary;
+    perimeter.traverse((object) => { if (object.isInstancedMesh) object.dispose(); });
+    perimeter.clear();
     if (!terrain.visible) return;
-    const points = map.boundary.points.map(([x, z]) => new THREE.Vector2(x, -z));
+    const corners = map.boundary.points;
+    for (const [index, [x, z]] of corners.entries()) {
+      const [nextX, nextZ] = corners[(index + 1) % corners.length];
+      const root = groupAt(perimeter, 'Boundary edge', [(x + nextX) / 2, 0, (z + nextZ) / 2],
+        Math.atan2(z - nextZ, nextX - x));
+      buildWall(root, materials, Math.hypot(nextX - x, nextZ - z), 2.42);
+    }
+    batchStaticMeshes(perimeter);
+    const points = corners.map(([x, z]) => new THREE.Vector2(x, -z));
     const geometry = new THREE.ShapeGeometry(new THREE.Shape(points));
     const positions = geometry.attributes.position;
     for (let index = 0; index < positions.count; index++) {
@@ -133,7 +147,9 @@ function createLandSurface(scene, site, map, opening, materials) {
 }
 
 function blocked(x, z, colliders, bounds) {
-  if (!insideLand(bounds, x, z, playerRadius, true)) return true;
+  // Custom walls follow diagonal edges, so use distance to the polygon instead of a wide AABB.
+  const wallInset = bounds.points ? 0.32 : 0;
+  if (!insideLand(bounds, x, z, playerRadius + wallInset, true)) return true;
   return colliders.some(({ minX, maxX, minZ, maxZ }) =>
     x > minX - playerRadius && x < maxX + playerRadius && z > minZ - playerRadius && z < maxZ + playerRadius);
 }

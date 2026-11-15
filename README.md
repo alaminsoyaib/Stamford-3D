@@ -45,10 +45,14 @@ Press **E** or select **Layout editor** to open the overhead view. Click a build
 
 1. Select **Clear to deck** to start with an empty grid. The full-width tray shows previews of stored buildings, trees, paths, and equipment. Scroll or swipe along the tray, or use **Find stored objects** to filter it.
 2. To start with the outline traced from the university's Google Maps measurement, open **Land boundary** and select **Load empty Stamford campus**. This loads the outline and moves placed pieces into the deck in one undoable step. To make your own outline, drag or add corners, enter their coordinates, or select **Draw new** and click through the outline. Select **Apply boundary** to save your changes. Store the pool first if a drawn boundary crosses it.
-3. Drag a card onto the grid with a mouse or by pulling upward on touch. The footprint shows where it will land. You can also select a card and then click or tap a spot. Drag placed objects onto the deck, press **Delete** or **Backspace**, or select **Store** to put them away again.
+3. The preset and any applied custom outline get automatic perimeter walls. Drag a card onto the grid with a mouse or by pulling upward on touch. The footprint shows where it will land. You can also select a card and then click or tap a spot. Drag placed objects onto the deck, press **Delete** or **Backspace**, or select **Store** to put them away again.
 4. Select a building or prop and choose **Duplicate** or press **Ctrl+D**, then choose where to place the copy. It starts with the selected object's dimensions and model. Use the **×** on a deck card and confirm to remove that object from the saved layout.
 
 Choose **Move** (`G`), **Rotate** (`R`), or **Scale** (`S`), then drag the colored handles. For buildings, enter width and depth in metres or set the floor count directly. The vertical handle adds or removes whole floors. Each building keeps its floor height, and doors and windows keep their size as the façade is rebuilt. Other scalable props use percentages. Press Enter or leave a field to apply it. The arrow keys nudge by 1 m, or 5 m with Shift. `Q` and `T` rotate by 15°.
+
+In **Land boundary**, enter a percentage and select **Scale outline**, then **Apply boundary**. For example, 150% increases each dimension by half around the outline’s center. Buildings and other pieces stay where you placed them.
+
+Matching stored pieces share a card with a quantity badge. Dragging a card out or deleting from it acts on one piece at a time.
 
 Drag **+ Tree** or **+ Building** onto campus ground, or select the item and click or tap the ground. For **+ Door**, target an exterior wall or the corresponding roof edge. The door stays on that wall when the building moves or resizes. Select it to adjust **Along wall (m)**. Press Esc once to cancel placement.
 
