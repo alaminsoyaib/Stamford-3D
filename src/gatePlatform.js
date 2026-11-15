@@ -7,7 +7,7 @@ const dimensions = { width: 6.1468, depth: 3.8862, height: 0.5588 };
 const profile = (points) => new THREE.LatheGeometry(points.map(([r, y]) => new THREE.Vector2(r, y)), 16);
 const potBody = profile([[0, 0], [0.65, 0], [0.7, 0.07], [0.92, 0.84], [1, 0.89], [1, 1], [0.85, 1], [0.84, 0.81]]);
 const potLip = profile([[1.006, 0.908], [1.011, 0.987], [0.981, 1.014], [0.864, 1.014], [0.849, 0.983]]);
-const leafGeometry = new THREE.BufferGeometry();
+export const leafGeometry = new THREE.BufferGeometry();
 leafGeometry.setAttribute('position', new THREE.Float32BufferAttribute([
   0, 0, 0, -0.46, 0.43, 0, 0, 0.5, 0.16,
   0, 0, 0, 0, 0.5, 0.16, 0.46, 0.43, 0,
@@ -15,6 +15,14 @@ leafGeometry.setAttribute('position', new THREE.Float32BufferAttribute([
   0.46, 0.43, 0, 0, 0.5, 0.16, 0, 1, 0
 ], 3));
 leafGeometry.computeVertexNormals();
+
+export function clayPot(parent, position, radius, height, { clay, rim, soil }) {
+  const pot = groupAt(parent, 'Tapered clay planter', position);
+  part(pot, potBody, clay, [0, 0, 0], [radius, height, radius]);
+  part(pot, potLip, rim, [0, 0, 0], [radius, height, radius]);
+  cylinder(pot, soil, radius * 0.83, 0.018, [0, height * 0.84, 0]);
+  return pot;
+}
 
 function ceramicTiles() {
   const rng = seededRandom(3140);
@@ -76,14 +84,13 @@ export function buildGatePlatform(zone, kit, gate) {
     const inRow = i < 7;
     const x = (inRow ? 1 : -1) * (width / 2 - 0.3);
     const z = inRow ? (i / 6 - 0.5) * (depth - 0.7) : (i === 7 ? -0.85 : -0.16);
-    const planter = groupAt(root, 'Tapered clay planter', [x, height, z]);
     const radius = 0.16 + rng() * 0.075;
     const potHeight = 0.24 + rng() * 0.13;
     const clay = i % 4 === 1 ? weatheredClay : redClay;
-    part(planter, potBody, clay, [0, 0, 0], [radius, potHeight, radius]);
-    part(planter, potLip, i % 4 === 1 ? clay : paleRim, [0, 0, 0], [radius, potHeight, radius]);
+    const planter = clayPot(root, [x, height, z], radius, potHeight, {
+      clay, rim: i % 4 === 1 ? clay : paleRim, soil: m.soil
+    });
     const soilHeight = potHeight * 0.84;
-    cylinder(planter, m.soil, radius * 0.83, 0.018, [0, soilHeight, 0]);
 
     const phase = rng() * Math.PI * 2;
     for (let stem = 0; stem < 4; stem++) {

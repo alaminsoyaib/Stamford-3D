@@ -6,6 +6,8 @@ Record completed changes here, with verification when it helps a future handoff.
 
 ### Added
 
+- Added the curved black-and-white planting bed beside the gate, planted with a palm, two other trees, and terracotta pots. It is editable as one facility and appears on the minimap.
+
 - Modeled the measured tiled platform and its planters on the inside right of the campus gate. The platform appears on the minimap and can be moved or stored in the layout editor.
 - Converted the application to permanent drone flight mode: removed walking mode and the `F` toggle button so the user is always in flight mode from initial entry.
 - Standardized Deep Sea (`underwater.html`) controls to exactly match campus drone mode: `WASD` for horizontal movement, `↑` or Left-Click to ascend, `↓` or Right-Click to descend, and `Shift` for boost speed (neither `Space` nor `C` are used for climb, eliminating control discrepancy).
@@ -62,6 +64,8 @@ Record completed changes here, with verification when it helps a future handoff.
 - Replaced building stretch transforms with metre-based footprints and whole-floor resizing. The building factory preserves opening dimensions, refits façade details, and rebuilds colliders.
 
 ### Verification
+
+- Checked the entry planting bed from the marked viewpoint in a saved layout. Verified gate passage, collision, Facilities deck storage, undo, minimap updates, and JSON export and reload in Chromium. The build and nine unit tests passed.
 
 - Checked the measured platform in the stock layout and a saved layout with a rotated gate. Verified walking collision, gate passage, minimap, Facilities deck storage, undo, JSON export, and reload in Chromium. The Vite build and nine unit tests passed.
 

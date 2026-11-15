@@ -356,6 +356,8 @@ export function makeMinimap(map) {
   if (!removed.has('pool')) rect('water', map.pool);
   const gatePlatform = map.elements?.['gate-platform'];
   if (gatePlatform && !removed.has('gate-platform')) rect('footprint gate-platform', gatePlatform);
+  const gatePlantingBed = map.elements?.['gate-planting-bed'];
+  if (gatePlantingBed && !removed.has('gate-planting-bed')) rect('green gate-planting-bed', gatePlantingBed);
   const stops = map.stops.filter(({ key }) => key !== '4' || !removed.has('pool')).map(({ key, position: [x, , z] }) => {
     const marker = shape('g', '', { transform: `translate(${x - 5} ${z})` });
     shape('circle', 'checkpoint-dot', { r: 3.45 }, marker);
