@@ -40,7 +40,7 @@ Select **Enter campus** or **Begin descent** to switch from the illustrated land
 
 At checkpoint 4, walk forward down the pool steps to cross the portal by proximity. The vertical return ring sits at `(8, -2, -3.3)` in the ocean and brings you back to the pool deck. After an automatic arrival, drag to look. On desktop, pause and resume to re-enable pointer lock. Touch devices can use on-screen movement controls.
 
-Press **F** during campus exploration, or select **Drone** while paused. The view starts from your current position at walking height. Use **WASD** to fly, **↑ / ↓** to change altitude between **1.7 m and 80 m**, and hold **Shift** to boost. Releasing the altitude keys holds that level. Touch controls include **Rise**, **Sink**, and **Boost**. A quiet rotor hum changes pitch with movement and acceleration, and pans toward the side you are moving.
+Press **F** during campus exploration, or select **Drone** while paused. The view starts from your current position at walking height. Use **WASD** to fly, **↑ / ↓** to change altitude between **1.7 m and 80 m**, and hold **Shift** to boost. Releasing the altitude keys holds that level. Touch controls include **Rise**, **Sink**, and **Boost**. The rotor recording spools up as you fly faster, pans with strafing, and changes tone when you climb or descend.
 
 ## Edit the campus layout
 

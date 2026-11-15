@@ -9,7 +9,7 @@ Serve the repository root over HTTP in a WebGL 2 browser. The two HTML entry poi
 | File | Responsibility |
 | --- | --- |
 | [index.html](index.html) | Campus entry, minimap, coordinates, checkpoint shortcuts, editor entry |
-| [src/campusDroneAudio.js](src/campusDroneAudio.js) | Synthesized rotor hum, movement pitch, and stereo cues for campus flight |
+| [src/campusDroneAudio.js](src/campusDroneAudio.js) | Rotor loop playback, pitch and stereo cues, and synthesized fallback for campus flight |
 | [underwater.html](underwater.html) | Ocean entry, depth meter, swim controls, campus return link |
 | [styles.css](styles.css) | Shared landing screens, blue scene themes, responsive HUD, portal transition |
 | [assets/](assets/) | Underwater landing artwork, original campus concept artwork, and locally hosted Bricolage Grotesque |
@@ -67,7 +67,8 @@ The built-in image generation tool produced the underwater artwork and the earli
 
 ## Graphics details to preserve
 
-- Drone mode uses the campus camera and mouse look. Its altitude spans the walking eye height to 80 m. Horizontal collision reuses the campus footprints with height checks so the drone can clear roofs and blocks descent into them. The rotor fades while exploration is paused.
+- Drone mode uses the campus camera and mouse look. Its altitude spans the walking eye height to 80 m. Horizontal collision reuses the campus footprints with height checks so the drone can clear roofs and blocks descent into them. The audio receives camera-relative displacement after collision and altitude checks, normalized by flight speed. Playback rate, gain, filter cutoff, and pan change smoothly, and the rotor fades while exploration is paused.
+- [assets/drone-rotors.wav](assets/drone-rotors.wav) is a 3.55-second mono loop cut from a Phantom 4 Pro hover recording. The source was downmixed, high-pass filtered, normalized, and crossfaded at the loop seam. [UAS Drone Hover 01.wav by DCPoke, CC0](https://freesound.org/people/DCPoke/sounds/387985/)
 
 - Models use `THREE.Group` hierarchies and local transforms. The editor keeps transformable groups separate. The walking view combines repeated geometry into spatial instance batches and rebuilds them after an edit. Fish use animated instance matrices with conservative school bounds. Offscreen kelp, schools, and jellyfish geometry skip animation work.
 - Pool wave height adds sine and cosine terms. Kelp uses a travelling sine wave with fixed roots. Fish follow `x = x₀ + R cos(ωt + φ)` and `z = z₀ + R sin(ωt + φ)`, face the tangent, and oscillate their tails. The source comments document the formulas for the graphics report.

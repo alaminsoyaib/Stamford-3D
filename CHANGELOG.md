@@ -32,6 +32,8 @@ Record completed changes here, with verification when it helps a future handoff.
 
 ### Changed
 
+- Replaced the drone hum with a locally bundled quadcopter recording. Actual speed and direction now drive rotor playback rate, loudness, tone, and stereo position.
+
 - Expanded the campus placement deck across the viewport and added previews rendered from the campus models. Card dragging now uses mouse, pen, or touch input, with a floating image and the snapped footprint.
 - Added bi-directional scene switching with keyboard shortcut `P` (and `O` on campus, `C` on ocean landing) between Stamford Campus and Deep Sea: switching while roaming seamlessly loads the destination scene directly in active roaming mode; switching while on the landing briefing view (with the enter button) loads the destination scene on its matching landing view.
 - Streamlined the campus HUD location badge: removed redundant zone code text (e.g., "ZONE D") to create a compact, single-row height badge, and added a vector SVG map pinpoint/location icon to the left of the area name.
@@ -45,6 +47,8 @@ Record completed changes here, with verification when it helps a future handoff.
 - Replaced building stretch transforms with metre-based footprints and whole-floor resizing. The building factory preserves opening dimensions, refits façade details, and rebuilds colliders.
 
 ### Verification
+
+- Verified the recorded rotor loop, forward and boosted playback rates, reverse and altitude cues, stereo panning, pause fade, touch ascent, and the synthesized fallback in Chromium. Both pages built with Vite.
 
 - Checked drone pointer lock, altitude limits, left and right audio panning, return to walking, and touch ascent in Chromium. Both scenes built with Vite.
 

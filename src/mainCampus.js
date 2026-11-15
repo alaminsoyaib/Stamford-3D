@@ -246,6 +246,7 @@ export async function startCampus() {
   const droneButton = document.querySelector('[data-action="KeyF"]');
   const droneAltitude = document.getElementById('drone-altitude');
   const obstacleBounds = new THREE.Box3();
+  const flightOrigin = new THREE.Vector3();
   let drone = false;
   let obstacleTops = new WeakMap();
   let lastArea;
@@ -405,11 +406,13 @@ export async function startCampus() {
   }
 
   function fly(dt, boosted) {
+    if (dt <= 0) return;
     const x = Number(runtime.down('KeyD')) - Number(runtime.down('KeyA'));
     const z = Number(runtime.down('KeyW')) - Number(runtime.down('KeyS'));
     const climb = Number(runtime.down('ArrowUp')) - Number(runtime.down('ArrowDown'));
     const speed = boosted ? walkingBoost : 1;
     const pos = camera.position;
+    flightOrigin.copy(pos);
     if (x || z || climb) activeStop = null;
 
     if (climb) {
@@ -428,7 +431,15 @@ export async function startCampus() {
       const obstacles = kit.colliders.filter((obstacle) => pos.y < obstacleTop(obstacle));
       walkWithCollision(pos, movement.x, movement.z, obstacles, map.boundary);
     }
-    droneAudio.update(document.hasFocus(), x, z, climb, boosted);
+    // Use the displacement after collision and altitude limits, in camera-relative axes.
+    const displacement = movement.subVectors(pos, flightOrigin);
+    const maxStep = walkingSpeed * walkingBoost * dt;
+    droneAudio.update(
+      document.hasFocus(),
+      displacement.dot(right) / maxStep,
+      displacement.dot(forward) / maxStep,
+      displacement.y / (droneClimbSpeed * walkingBoost * dt)
+    );
   }
 
   const stopActions = Object.fromEntries(map.stops.map((stop) => [`Digit${stop.key}`, () => {
