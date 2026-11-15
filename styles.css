@@ -263,18 +263,30 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outlin
 .minimap [data-current="true"] .checkpoint-dot { fill: var(--accent); }
 .minimap [data-current="true"] .checkpoint-text { fill: var(--dark); }
 .minimap .player { fill: #fff; stroke: #132b56; stroke-width: .5; }
-.telemetry {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 3px;
-  padding: 7px 0;
-  border-block: 1px solid var(--line);
-  font: 10px/1.2 var(--mono);
+.camera-coordinates {
+  display: none;
+  position: absolute;
+  z-index: 1;
+  top: var(--top);
+  right: var(--gutter);
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--glass);
+  color: var(--fg);
+  white-space: nowrap;
+  font: 12px/1.2 var(--mono);
+  font-variant-numeric: tabular-nums;
 }
-.telemetry span { white-space: nowrap; }
-.telemetry b { color: var(--accent); }
-.telemetry output { font-variant-numeric: tabular-nums; }
+[data-briefing="compact"] .camera-coordinates:not([hidden]) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.camera-coordinates b { color: var(--accent); }
+[data-mode="drag"] .camera-coordinates {
+  top: calc(var(--top) + 58px);
+}
 .depth-readout { display: flex; align-items: baseline; gap: 6px; margin: 12px 0 9px; }
 .depth-readout output { font-size: 43px; line-height: .9; letter-spacing: -.08em; font-variant-numeric: tabular-nums; }
 .depth-readout > span { color: var(--accent); font: 11px var(--mono); }
@@ -297,7 +309,6 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outlin
   box-shadow: 0 0 9px #93ecff;
 }
 .depth-labels { display: flex; justify-content: space-between; margin: 5px 0 9px; color: var(--muted); font: 9px var(--mono); }
-.ocean-instrument .telemetry { border-bottom: 0; padding-bottom: 0; }
 
 .bottom-hud {
   position: absolute;
@@ -420,8 +431,7 @@ kbd {
   .instrument-top, .instrument-bottom { font-size: 8px; }
   .instrument-bottom { margin-top: 4px; }
   .minimap { height: 80px; margin: 5px 0; }
-  .telemetry { font-size: 8px; padding: 4px 0; gap: 2px; }
-  .telemetry span { display: flex; align-items: center; gap: 1px; }
+  .camera-coordinates { top: calc(var(--top) + 58px); }
   .depth-readout { margin: 8px 0; }
   .depth-readout output { font-size: 31px; }
   .depth-labels { margin-bottom: 5px; }
@@ -479,7 +489,6 @@ kbd {
   .instrument-top { font-size: 8px; }
   .instrument-bottom { display: none; }
   .campus-instrument .minimap { height: 65px; margin: 5px 0; }
-  .telemetry { font-size: 8px; padding: 4px 0; }
   .hero-title, .ocean .hero-title {
     top: calc(var(--top) + 40px);
     left: calc(var(--gutter) + var(--instrument-width) + 8px);

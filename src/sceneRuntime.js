@@ -243,6 +243,7 @@ export function createRuntime({ fov, far, shadows = false, shiftStrafe = false, 
       actions = keyActions;
       ready = true;
       document.body.dataset.ready = 'true';
+      if (!import.meta.env?.PROD) document.querySelector('.camera-coordinates').hidden = false;
       status.textContent = '';
       start.disabled = false;
       for (const button of buttons) button.disabled = !Object.hasOwn(actions, button.dataset.action);

@@ -47,14 +47,16 @@
       </div>
     </section>
 
-    <aside class="instrument campus-instrument" aria-label="Campus map and coordinates" hidden>
+    <div class="camera-coordinates" role="group" aria-label="Camera coordinates in metres" hidden>
+      <span><b>X</b> <output id="coord-x" aria-live="off">—</output></span>
+      <span><b>Y</b> <output id="coord-y" aria-live="off">—</output></span>
+      <span><b>Z</b> <output id="coord-z" aria-live="off">—</output></span>
+      <span>m</span>
+    </div>
+
+    <aside class="instrument campus-instrument" aria-label="Campus map" hidden>
       <div class="instrument-top"><span><i class="signal"></i> Campus map</span><span>↑ N</span></div>
       <svg id="minimap" class="minimap" role="img" aria-label="Campus map with your position and four stops"></svg>
-      <div class="telemetry">
-        <span><b>X</b> <output id="coord-x">—</output></span>
-        <span><b>Y</b> <output id="coord-y">—</output></span>
-        <span><b>Z</b> <output id="coord-z">—</output></span>
-      </div>
       <div class="instrument-bottom"><span>Heading</span><span id="bearing">N · 000°</span></div>
     </aside>
 

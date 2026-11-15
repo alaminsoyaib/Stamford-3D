@@ -14,6 +14,8 @@ Record completed changes here, with verification when it helps a future handoff.
 ### Changed
 
 - Significantly increased campus movement speeds across both walking/flight and sprint: base speed increased from 5.15 m/s to 9.0 m/s (~75% faster), sprint boost increased to 1.9× (17.1 m/s, over 100% faster), and vertical climb speed increased from 7 m/s to 12 m/s.
+- Added an upper-right development readout for live camera X, Y, and Z on campus and underwater. Verified campus pointer lock, checkpoint changes, pause and editor visibility, and touch descent at 320 px in Chromium. The Vite production build keeps the readout hidden.
+- Added a first-person campus drone mode with WASD, Shift boost, altitude controls, and synthesized directional rotor audio.
 
 - Added placement deck category filter tabs (**Buildings**, **Trees**, **Facilities**, **Doors**, and **All**) with dynamic badge counts, organizing stored campus items into distinct categories with an "All" overview and immediate filtering.
 - Added duplicate building stacking on the placement deck: multiple identical building duplicates collapse into a single card displaying a count badge (`×N`), while resized or altered buildings automatically generate distinct cards labeled with their exact dimensions and floor counts.
