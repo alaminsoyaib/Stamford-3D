@@ -67,6 +67,7 @@ export function buildGateGarden(scene, kit) {
   disk.scale.set(garden.radiusX, garden.radiusZ, 1);
   disk.receiveShadow = true;
   lawn.add(disk);
+  const curbHeight = 16 * 0.0254; // IMG_3141.JPG measures from paving to the top of the curb.
   for (let index = 0; index < 64; index++) {
     const angle = (index + 0.5) * Math.PI * 2 / 64;
     const dx = -Math.sin(angle) * garden.radiusX;
@@ -74,7 +75,7 @@ export function buildGateGarden(scene, kit) {
     const px = Math.cos(angle) * garden.radiusX;
     const pz = Math.sin(angle) * garden.radiusZ;
     const curb = box(lawn, index % 2 ? m.white : m.black,
-      [Math.hypot(dx, dz) * Math.PI / 32 + 0.025, 0.2, 0.28], [px, 0.108, pz]);
+      [Math.hypot(dx, dz) * Math.PI / 32 + 0.025, curbHeight, 0.28], [px, curbHeight / 2, pz]);
     curb.rotation.y = -Math.atan2(dz, dx);
   }
   kit.flowerBed(zone, 7.5, 16.7, 3.3, 400, 52);
