@@ -4,25 +4,53 @@ const scaleMin = 0.1;
 const scaleMax = 20;
 const xz = new THREE.Vector3();
 
-export function readCampusLayout(source) {
-  // A changed source file starts a new saved layout.
+export function layoutKey(source) {
   let hash = 2166136261;
   for (let i = 0; i < source.length; i++) hash = Math.imul(hash ^ source.charCodeAt(i), 16777619);
-  const key = `stamford-layout-v1-${hash >>> 0}`;
-  let map = JSON.parse(source);
-  for (const storage of ['sessionStorage', 'localStorage']) {
-    try {
-      const saved = window[storage].getItem(key);
-      if (saved) {
-        map = JSON.parse(saved);
-        break;
-      }
-    } catch {
-      // The source map stays available when storage is blocked.
+  return `stamford-layout-v1-${hash >>> 0}`;
+}
+
+export function validateCampusLayout(data) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    return { valid: false, error: 'Layout data must be a JSON object.' };
+  }
+  const { boundary } = data;
+  if (!boundary || typeof boundary !== 'object') {
+    return { valid: false, error: 'Layout is missing a valid "boundary" object.' };
+  }
+  if (Array.isArray(boundary.points)) {
+    if (boundary.points.length < 3 || !boundary.points.every((pt) => Array.isArray(pt) && pt.length >= 2 && Number.isFinite(pt[0]) && Number.isFinite(pt[1]))) {
+      return { valid: false, error: 'Boundary points must contain at least 3 valid [x, z] coordinates.' };
+    }
+  } else {
+    const hasBounds = ['minX', 'maxX', 'minZ', 'maxZ'].every((k) => Number.isFinite(boundary[k]));
+    if (!hasBounds) {
+      return { valid: false, error: 'Boundary must include minX, maxX, minZ, maxZ or polygon points.' };
     }
   }
-  return { map, save() {
-    const json = JSON.stringify(map);
+  return { valid: true, map: data };
+}
+
+export function readCampusLayout(source) {
+  // A changed source file starts a new saved layout.
+  const key = layoutKey(source);
+  let map = JSON.parse(source);
+  if (typeof window !== 'undefined') {
+    for (const storage of ['sessionStorage', 'localStorage']) {
+      try {
+        const saved = window[storage].getItem(key);
+        if (saved) {
+          map = JSON.parse(saved);
+          break;
+        }
+      } catch {
+        // The source map stays available when storage is blocked.
+      }
+    }
+  }
+  function saveLayout(newMap) {
+    if (typeof window === 'undefined') return;
+    const json = JSON.stringify(newMap);
     for (const storage of ['localStorage', 'sessionStorage']) {
       try {
         window[storage].setItem(key, json);
@@ -30,7 +58,13 @@ export function readCampusLayout(source) {
         // JSON export stays available when storage is blocked.
       }
     }
-  } };
+  }
+  return {
+    map,
+    key,
+    save() { saveLayout(map); },
+    saveLayout
+  };
 }
 
 export function createLayoutRegistry(map) {
