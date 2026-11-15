@@ -6,6 +6,8 @@ Record completed changes here, with verification when it helps a future handoff.
 
 ### Added
 
+- Added an **Import JSON** modal dialog to the layout editor supporting local file picking (`.json`) and direct JSON pasting with structure validation, keyboard shortcut submission (`Ctrl+Enter`), drag-and-drop, and automatic layout reload into editor mode.
+
 - Added uniform boundary scaling and counted deck stacks for matching items. Each drag or deletion uses one piece from the stack.
 
 - Added automatic perimeter walls for the Stamford preset and custom land outlines. Applying, undoing, or reloading an outline rebuilds its walls.
@@ -37,6 +39,8 @@ Record completed changes here, with verification when it helps a future handoff.
 - Replaced building stretch transforms with metre-based footprints and whole-floor resizing. The building factory preserves opening dimensions, refits façade details, and rebuilds colliders.
 
 ### Verification
+
+- Verified layout import and schema validation unit tests in Node.js, syntax checks on all source modules, production build with Vite, and valid JSON structure.
 
 - Checked 150% boundary scaling, undo and redo, duplicate tree stacking, single-piece placement and deletion, and reload in Chromium. Both pages built with Vite.
 

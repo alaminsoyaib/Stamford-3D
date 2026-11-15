@@ -60,7 +60,7 @@ Stored buildings carry their attached doors. An individually stored door can be 
 
 Use **Undo** and **Redo**, or press **Ctrl+Z** and **Ctrl+Shift+Z**. On macOS, use **Command** in place of **Ctrl**. The editor keeps the last 50 changes until the page reloads. Clearing the map and applying a boundary each count as one change.
 
-Edits apply to the current tour and save in this browser. **Export JSON** downloads `CAMPUS_MAP.json` with the current placements, outline, and deck. Replace the file at the repository root with that download to share the layout. Building model changes in the zone modules appear at the saved positions when the page reloads. Copies of campus buildings use the same model, with their own positions and dimensions.
+Edits apply to the current tour and save in this browser. **Export JSON** downloads `CAMPUS_MAP.json` with the current placements, outline, and deck, while **Copy JSON** copies the map to your clipboard. Select **Import JSON** to load a layout by pointing to a saved `CAMPUS_MAP.json` file or pasting JSON code directly into the text box and applying it (or pressing `Ctrl+Enter`). Replace the file at the repository root with that download to share the layout. Building model changes in the zone modules appear at the saved positions when the page reloads. Copies of campus buildings use the same model, with their own positions and dimensions.
 
 ## Blueprint and graphics
 

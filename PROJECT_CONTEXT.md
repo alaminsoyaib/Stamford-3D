@@ -15,7 +15,7 @@ Serve the repository root over HTTP in a WebGL 2 browser. The two HTML entry poi
 | [CAMPUS_MAP.json](CAMPUS_MAP.json) | Campus footprints, axes, palette, paths, zones, checkpoints, and numbered photo notes |
 | [src/mainCampus.js](src/mainCampus.js) | Loads the map, builds terrain and perimeter, resolves walking collisions, handles checkpoints and entry into the pool portal |
 | [src/campusHero.js](src/campusHero.js) | Renders the actual CSE building into a transparent 2D canvas for the landing page |
-| [src/campusEditor.js](src/campusEditor.js) | Overhead camera, direct dragging, transform controls, placement deck, undo, and JSON export |
+| [src/campusEditor.js](src/campusEditor.js) | Overhead camera, direct dragging, transform controls, placement deck, undo, and JSON export/import |
 | [src/campusDeckDrag.js](src/campusDeckDrag.js) | Card dragging with pointer capture and a preview near the pointer |
 | [src/campusDeckPreviews.js](src/campusDeckPreviews.js) | Cached thumbnails rendered from the stored scene objects |
 | [src/campusLandEditor.js](src/campusLandEditor.js) | Grid and boundary overlays, corner editing, and outline drafts |
@@ -61,7 +61,7 @@ The built-in image generation tool produced the underwater artwork and the earli
 - The `deck` array stores IDs while keeping the object records. Stored entries are detached from the scene and excluded from picking, colliders, and the minimap. Buildings carry their mounted doors, and the pool carries the separately editable portal. Permanently deleted built-in objects use `removedObjects`. Deleting added pieces removes their records. The editor saves the layout against the source map in browser storage.
 - The deck captures nearby cards on demand into 2D canvases with one small WebGL renderer. Cached previews follow the stored model's shape and scale. Pointer drags pause captures and use the same snap, land, and wall checks as click placement.
 - Deck stacks group related models in the editor. Each placement and deletion still uses a single stored record and the saved deck retains individual IDs. Boundary scaling updates the draft corners uniformly around the bounds center and uses the same apply and undo path as corner edits.
-- Undo and redo hold committed transforms, placement and deck operations, and land boundary edits in memory. Pool transforms capture the portal, checkpoint, and zone together. Replaying an edit updates the scene and saves the current layout for reload and export.
+- Undo and redo hold committed transforms, placement and deck operations, and land boundary edits in memory. Pool transforms capture the portal, checkpoint, and zone together. Replaying an edit updates the scene and saves the current layout for reload and export. Layout import validates JSON structure from file selection or direct text paste and reloads into the editor.
 
 ## Graphics details to preserve
 
