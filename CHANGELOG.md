@@ -6,13 +6,18 @@ Record completed changes here, with verification when it helps a future handoff.
 
 ### Added
 
-- Enabled campus drone mode by default upon entering the campus, starting at walking height (1.7 m) with active rotor audio, while preserving `F` key and pause action toggling between drone flight and walking.
-- Added mouse altitude controls in drone mode: Left-click ascends and Right-click descends (just like the Up and Down arrow keys), with context-menu prevention and automatic altitude clamping between 1.7 m and 80 m.
-- Added `M` shortcut and HUD action button to toggle drone rotor audio mute/unmute with smooth gain transitions and screen announcements.
-- Added unit tests for drone audio mute/unmute behavior in `tests/campusDroneAudio.test.js`.
+- Converted the application to permanent drone flight mode: removed walking mode and the `F` toggle button so the user is always in flight mode from initial entry.
+- Standardized Deep Sea (`underwater.html`) controls to exactly match campus drone mode: `WASD` for horizontal movement, `↑` or Left-Click to ascend, `↓` or Right-Click to descend, and `Shift` for boost speed (neither `Space` nor `C` are used for climb, eliminating control discrepancy).
+- Added dynamic underwater drone mode across both campus swimming pool and Deep Sea (`underwater.html`): transitioning into water engages an acoustic profile with low-pass hydrophone filtering (280–540 Hz), high resonance (Q = 1.65), and a 52 Hz sub-water thruster purr at 0.72× pitch rate.
+- Added canvas pointer lock requests on click and pointerdown in `sceneRuntime.js`, fixing the issue where mouse look in Deep Sea did not rotate the camera due to unengaged pointer lock.
+- Added swimming pool immersion for campus drone mode: allows descending below 1.7 m eye height down to `-2.55 m` (pool basin floor) when over the pool, confines horizontal movement within pool basin walls below ground level, updates HUD to show underwater drone depth, and triggers portal dive when reaching the submerged ring.
+- Added mouse altitude controls in drone mode: Left-click ascends and Right-click descends (just like the Up and Down arrow keys), with context-menu prevention and automatic altitude clamping between 1.7 m and 80 m (and down to `-2.55 m` in the pool).
+- Added `M` shortcut and HUD action button to toggle drone audio mute/unmute with smooth gain transitions and screen announcements.
+- Added unit tests for drone audio mute/unmute behavior and underwater mode transitions in `tests/campusDroneAudio.test.js`.
 
 ### Changed
 
+- Increased deep sea swimming and climb speeds: horizontal swim speed increased to 8.5 m/s (15.7 m/s boosted with Shift, an 85% boost) and vertical climb speed increased to 11.0 m/s (20.3 m/s boosted).
 - Significantly increased campus movement speeds across both walking/flight and sprint: base speed increased from 5.15 m/s to 9.0 m/s (~75% faster), sprint boost increased to 1.9× (17.1 m/s, over 100% faster), and vertical climb speed increased from 7 m/s to 12 m/s.
 - Added an upper-right development readout for live camera X, Y, and Z on campus and underwater. Verified campus pointer lock, checkpoint changes, pause and editor visibility, and touch descent at 320 px in Chromium. The Vite production build keeps the readout hidden.
 - Added a first-person campus drone mode with WASD, Shift boost, altitude controls, and synthesized directional rotor audio.

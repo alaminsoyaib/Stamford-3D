@@ -110,7 +110,7 @@ export function createRuntime({ fov, far, shadows = false, shiftStrafe = false, 
     activate('drag');
   }
 
-  start.addEventListener('click', () => {
+  function requestLock() {
     if (!ready || leaving || lostContext || alternateCamera) return;
     awaitingLock = true;
     if (coarse.matches || !canvas.requestPointerLock) {
@@ -122,6 +122,13 @@ export function createRuntime({ fov, far, shadows = false, shiftStrafe = false, 
     } catch {
       useDrag();
     }
+  }
+
+  start.addEventListener('click', requestLock);
+  canvas.addEventListener('click', () => {
+    if (!coarse.matches && document.pointerLockElement !== canvas) {
+      requestLock();
+    }
   });
   controls.addEventListener('lock', () => activate('lock'));
   controls.addEventListener('unlock', () => {
@@ -131,13 +138,16 @@ export function createRuntime({ fov, far, shadows = false, shiftStrafe = false, 
   document.getElementById('pause').addEventListener('click', pause);
 
   canvas.addEventListener('pointerdown', (event) => {
-    if (!active || alternateCamera) return;
-    if (document.body.dataset.mode === 'lock') {
+    if (!ready || leaving || lostContext || alternateCamera) return;
+    if (!coarse.matches && document.pointerLockElement !== canvas) {
+      requestLock();
+    }
+    if (document.body.dataset.mode === 'lock' || (!coarse.matches && event.pointerType !== 'touch')) {
       if (event.button === 0) mouseButtons.add('PointerLeft');
       else if (event.button === 2) mouseButtons.add('PointerRight');
       return;
     }
-    if (document.body.dataset.mode !== 'drag' || dragPointer !== null || event.button !== 0) return;
+    if (!active || document.body.dataset.mode !== 'drag' || dragPointer !== null || event.button !== 0) return;
     dragPointer = event.pointerId;
     dragX = event.clientX;
     dragY = event.clientY;
@@ -149,7 +159,7 @@ export function createRuntime({ fov, far, shadows = false, shiftStrafe = false, 
     else if (event.button === 2) mouseButtons.delete('PointerRight');
   });
   window.addEventListener('contextmenu', (event) => {
-    if (active && document.body.dataset.mode === 'lock') event.preventDefault();
+    if (active && (!coarse.matches || document.body.dataset.mode === 'lock')) event.preventDefault();
   });
   canvas.addEventListener('pointermove', (event) => {
     if (event.pointerId !== dragPointer) return;
@@ -289,7 +299,11 @@ export function movementAxes(runtime) {
 export function updateCoordinates(position) {
   for (const axis of ['x', 'y', 'z']) {
     const value = Math.abs(position[axis]) < 0.05 ? 0 : position[axis];
-    document.getElementById(`coord-${axis}`).value = value.toFixed(1);
+    const el = document.getElementById(`coord-${axis}`);
+    if (el) {
+      el.value = value.toFixed(1);
+      el.textContent = value.toFixed(1);
+    }
   }
 }
 

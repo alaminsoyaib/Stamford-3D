@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { batchStaticMeshes, cameraFrustum, createPortal, cylinder, glowSprite, groupAt, part, rod, seededRandom } from './sceneKit.js';
-import { createRuntime, movementAxes, setLocation, updateCoordinates } from './sceneRuntime.js';
+import { createDroneAudio } from './campusDroneAudio.js';
+import { createRuntime, setLocation, updateCoordinates } from './sceneRuntime.js';
 
 const TAU = Math.PI * 2;
 const limit = 55;
@@ -617,6 +618,25 @@ export function startUnderwater() {
   let lastLayer = -1;
   let nextHud = 0;
 
+  const droneAudio = createDroneAudio({ underwater: true });
+  const muteButton = document.querySelector('[data-action="KeyM"]');
+
+  function toggleMute() {
+    const isMuted = droneAudio.toggleMute();
+    if (muteButton) {
+      muteButton.setAttribute('aria-pressed', String(isMuted));
+      muteButton.innerHTML = isMuted ? 'Muted <kbd>M</kbd>' : 'Sound <kbd>M</kbd>';
+    }
+    runtime.announce(isMuted ? 'Underwater drone sound muted' : 'Underwater drone sound active');
+  }
+
+  document.getElementById('start').addEventListener('click', () => {
+    if (!droneAudio.muted) droneAudio.start();
+  });
+  runtime.controls.addEventListener('lock', () => {
+    if (!droneAudio.muted) droneAudio.start();
+  });
+
   function returnToPool() {
     const roaming = runtime.active || document.body.dataset.briefing === 'compact';
     runtime.travel(() => {
@@ -636,23 +656,33 @@ export function startUnderwater() {
   }
   runtime.ready({
     KeyP: returnToPool,
-    KeyC: () => { if (!runtime.active) returnToPool(); }
+    KeyM: toggleMute
   });
   runtime.loop((dt, time) => {
-    if (runtime.active && !runtime.leaving) {
-      const [x, z] = movementAxes(runtime);
-      const y = Number(runtime.down('Space')) - Number(runtime.down('ShiftLeft', 'ShiftRight', 'KeyC'));
+    const roaming = runtime.active && !runtime.leaving;
+    if (roaming) {
+      const boosted = runtime.down('ShiftLeft', 'ShiftRight');
+      const boostSpeed = boosted ? 1.85 : 1;
+      const moveRight = runtime.down('KeyD', 'ArrowRight');
+      const moveLeft = runtime.down('KeyA', 'ArrowLeft');
+      const x = Number(moveRight) - Number(moveLeft);
+      const z = Number(runtime.down('KeyW')) - Number(runtime.down('KeyS'));
+      const climb = Number(runtime.down('ArrowUp', 'PointerLeft')) - Number(runtime.down('ArrowDown', 'PointerRight'));
       runtime.controls.getDirection(forward);
       forward.y = 0;
       forward.normalize();
       right.set(-forward.z, 0, forward.x);
       swim.copy(forward).multiplyScalar(z).addScaledVector(right, x);
       if (swim.lengthSq() > 1) swim.normalize();
-      camera.position.addScaledVector(swim, 6.5 * dt);
-      camera.position.y = THREE.MathUtils.clamp(camera.position.y + y * 8.8 * dt, -maxDepth, 0);
+      camera.position.addScaledVector(swim, 8.5 * boostSpeed * dt);
+      camera.position.y = THREE.MathUtils.clamp(camera.position.y + climb * 11.0 * boostSpeed * dt, -maxDepth, 0);
       camera.position.x = THREE.MathUtils.clamp(camera.position.x, -limit, limit);
       camera.position.z = THREE.MathUtils.clamp(camera.position.z, -limit, limit);
       if (camera.position.distanceTo(portal.position) <= 2.2) returnToPool();
+
+      droneAudio.update(document.hasFocus(), x, z, climb, true);
+    } else {
+      droneAudio.update(false);
     }
     const depth = Math.max(0, -camera.position.y);
     atmosphere(depth);

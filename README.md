@@ -20,11 +20,12 @@ Select **Enter campus** or **Begin descent** to switch from the illustrated land
 
 | Key | Action |
 | --- | --- |
-| WASD or arrow keys | Walk, fly, or swim horizontally |
-| Shift + WASD or arrow keys | Sprint at boosted speed on campus (90% faster) |
+| WASD or arrow keys | Fly or swim horizontally on campus and in deep sea |
+| Shift + WASD or arrow keys | Sprint / boost speed on campus and in deep sea |
 | Shift + Q / E | Strafe left / right at boosted speed on campus |
-| Mouse look | Look after selecting **Enter campus** or **Begin descent** |
-| Left-click / Right-click | Ascend / descend drone altitude (like ↑ / ↓) |
+| Mouse look | Look after selecting **Enter campus** or **Begin descent** (clicking canvas engages pointer lock) |
+| ↑ / Left-click | Ascend altitude on campus drone and in deep sea |
+| ↓ / Right-click | Descend altitude on campus drone and in deep sea |
 | Esc | Release the pointer and pause |
 | 1 | Main gate and front garden |
 | 2 | CSE, Admission Wing, bus and the library route |
@@ -35,14 +36,11 @@ Select **Enter campus** or **Begin descent** to switch from the illustrated land
 | V | Cycle Summer, Autumn and Winter Fog |
 | P | Switch directly between campus and deep sea (preserves roaming or landing view) |
 | E | Open or exit the campus layout editor |
-| F | Toggle campus drone mode and walking view |
 | M | Toggle drone sound mute and unmute |
-| Space | Ascend in the ocean |
-| Shift or C | Descend in the ocean |
 
-At checkpoint 4, walk forward down the pool steps to cross the portal by proximity. The vertical return ring sits at `(8, -2, -3.3)` in the ocean and brings you back to the pool deck. After an automatic arrival, drag to look. On desktop, pause and resume to re-enable pointer lock. Touch devices can use on-screen movement controls.
+At checkpoint 4, fly forward into the pool steps to dive into underwater drone mode or cross the portal by proximity. The vertical return ring sits at `(8, -2, -3.3)` in the ocean and brings you back to the pool deck. After an automatic arrival, click to engage pointer lock and look around. Touch devices can use on-screen movement controls.
 
-Drone mode is enabled by default upon entering the campus, starting from your current position at walking height. Press **F** during campus exploration, or select **Drone** while paused, to switch between drone flight and walking. Use **WASD** to fly, **↑ / ↓** or **Left-click / Right-click** to change altitude between **1.7 m and 80 m**, and hold **Shift** to boost. Releasing the altitude keys or mouse buttons holds that level. Press **M** or select **Sound** while paused to mute or unmute the drone rotor sound. Touch controls include **Rise**, **Sink**, and **Boost**. The rotor recording spools up as you fly faster, pans with strafing, and changes tone when you climb or descend.
+The application operates permanently in drone flight mode—there is no walking mode or mode switching. Use **WASD** to fly or swim, **↑** or **Left-click** to climb, **↓** or **Right-click** to descend (between **1.7 m and 80 m** on land), and hold **Shift** to boost speed. When descending into water (either the campus swimming pool down to `-2.55 m` or the deep ocean), the vehicle transitions into an **underwater drone** with muffled hydrophone resonance, deep sub-water thruster frequencies, and 3D swimming mobility. Releasing the altitude keys or mouse buttons holds that level. Press **M** or select **Sound** while paused to mute or unmute the drone audio. Touch controls include **Rise**, **Sink**, and **Boost**.
 
 For development screenshots, the exploration HUD shows the camera’s **X**, **Y**, and **Z** in world metres near the upper right. The readout stays visible on pause and updates as you walk, fly, swim, or jump to a checkpoint. It is available with the local static server and Vite development server, and hidden in the Vite production build.
 

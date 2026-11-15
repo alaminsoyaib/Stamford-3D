@@ -6,7 +6,7 @@ import { closestOnEdge, insideLand, landExtent, nearestLandEdge } from './campus
 import { renderCampusHero } from './campusHero.js';
 import { createPoolOpening, movePoolDependencies, readCampusLayout } from './campusLayout.js';
 import { batchStaticMeshes, box, canvasTexture, createSceneryBatches, groupAt, seededRandom } from './sceneKit.js';
-import { createRuntime, makeMinimap, movementAxes, setLocation, updateCoordinates } from './sceneRuntime.js';
+import { createRuntime, makeMinimap, setLocation, updateCoordinates } from './sceneRuntime.js';
 import { buildGateGarden } from './zoneA_GateGarden.js';
 import { createWeather } from './weatherAndLighting.js';
 import { buildCSEAdmission } from './zoneB_CSEAdmission.js';
@@ -243,14 +243,11 @@ export async function startCampus() {
   const bearing = document.getElementById('bearing');
   const eyeHeight = map.coordinateSystem.eyeHeight;
   const droneAudio = createDroneAudio();
-  const droneButton = document.querySelector('[data-action="KeyF"]');
   const muteButton = document.querySelector('[data-action="KeyM"]');
   const droneAltitude = document.getElementById('drone-altitude');
   const obstacleBounds = new THREE.Box3();
   const flightOrigin = new THREE.Vector3();
-  let drone = true;
   document.body.dataset.drone = 'true';
-  if (droneButton) droneButton.setAttribute('aria-pressed', 'true');
   if (droneAltitude) {
     droneAltitude.hidden = false;
     droneAltitude.value = `Drone · ${eyeHeight.toFixed(1)} m`;
@@ -269,9 +266,17 @@ export async function startCampus() {
   }
 
   function updateHud() {
-    if (drone) droneAltitude.value = `Drone · ${camera.position.y.toFixed(1)} m`;
-    const { x, z } = camera.position;
     const poolPlaced = kit.layout.objects.has('pool');
+    opening.local(camera.position, poolLocal);
+    const inset = pool.depth / 2 - poolLocal.z;
+    const insidePool = poolPlaced && Math.abs(poolLocal.x) < pool.width / 2 && inset > 0 && inset < pool.depth;
+    const scaleY = ground.poolRoot.scale.y;
+    const waterY = pool.waterY * scaleY;
+    const submerged = insidePool && camera.position.y < waterY;
+    droneAltitude.value = submerged
+      ? `Underwater Drone · ${(waterY - camera.position.y).toFixed(1)} m depth`
+      : `Drone · ${camera.position.y.toFixed(1)} m`;
+    const { x, z } = camera.position;
     const area = map.areas.find((region) => (region.stop !== '4' || poolPlaced)
       && x >= region.minX && x <= region.maxX && z >= region.minZ && z <= region.maxZ);
     if (area !== lastArea) {
@@ -320,7 +325,7 @@ export async function startCampus() {
       return;
     }
     const currentY = camera.position.y;
-    const altitude = drone ? (currentY > 0 ? currentY : eyeHeight) : eyeHeight;
+    const altitude = currentY > 0 ? currentY : eyeHeight;
     camera.position.set(position[0], altitude, position[1]);
     camera.lookAt(...stop.lookAt);
     activeStop = stop.key;
@@ -357,7 +362,7 @@ export async function startCampus() {
     const { x, z } = camera.position;
     if (blocked(x, z, kit.colliders, map.boundary)) {
       const safe = walkableNear(x, z);
-      if (safe) camera.position.set(safe[0], drone ? camera.position.y : eyeHeight, safe[1]);
+      if (safe) camera.position.set(safe[0], camera.position.y > 0 ? camera.position.y : eyeHeight, safe[1]);
       else runtime.announce('This layout blocks the campus. Open the editor to clear a path.');
     }
     updateHud();
@@ -386,25 +391,6 @@ export async function startCampus() {
     if (!editing) keepTourOnLand();
   }, saveLayout, persistLayout);
 
-  function toggleDrone() {
-    drone = !drone;
-    document.body.dataset.drone = String(drone);
-    document.body.dataset.briefing = 'compact';
-    droneButton.setAttribute('aria-pressed', String(drone));
-    droneAltitude.hidden = !drone;
-    const startSpan = document.getElementById('start')?.firstElementChild;
-    if (startSpan) startSpan.textContent = drone ? 'Resume flight' : 'Resume walk';
-    if (drone) {
-      camera.position.y = THREE.MathUtils.clamp(camera.position.y, eyeHeight, droneCeiling);
-      if (!droneAudio.muted) droneAudio.start();
-    } else {
-      droneAudio.update(false);
-      camera.position.y = eyeHeight;
-      keepTourOnLand();
-    }
-    updateHud();
-  }
-
   function toggleMute() {
     const isMuted = droneAudio.toggleMute();
     if (muteButton) {
@@ -415,10 +401,10 @@ export async function startCampus() {
   }
 
   document.getElementById('start').addEventListener('click', () => {
-    if (drone && !droneAudio.muted) droneAudio.start();
+    if (!droneAudio.muted) droneAudio.start();
   });
   runtime.controls.addEventListener('lock', () => {
-    if (drone && !droneAudio.muted) droneAudio.start();
+    if (!droneAudio.muted) droneAudio.start();
   });
 
   function obstacleTop({ group }) {
@@ -438,12 +424,23 @@ export async function startCampus() {
     flightOrigin.copy(pos);
     if (x || z || climb) activeStop = null;
 
+    const poolPlaced = kit.layout.objects.has('pool');
+    opening.local(pos, poolLocal);
+    const inset = pool.depth / 2 - poolLocal.z;
+    const insidePool = poolPlaced && Math.abs(poolLocal.x) < pool.width / 2 && inset > 0 && inset < pool.depth;
+    const scaleY = ground.poolRoot.scale.y;
+    const waterY = pool.waterY * scaleY;
+    const floorY = (pool.bottomY + 0.3) * scaleY;
+    const minY = insidePool ? floorY : eyeHeight;
+
     if (climb) {
-      const nextY = THREE.MathUtils.clamp(pos.y + climb * droneClimbSpeed * speed * dt, eyeHeight, droneCeiling);
-      if (climb > 0 || !kit.colliders.some((obstacle) =>
+      const nextY = THREE.MathUtils.clamp(pos.y + climb * droneClimbSpeed * speed * dt, minY, droneCeiling);
+      if (climb > 0 || nextY >= eyeHeight || insidePool || !kit.colliders.some((obstacle) =>
         pos.x > obstacle.minX - playerRadius && pos.x < obstacle.maxX + playerRadius
         && pos.z > obstacle.minZ - playerRadius && pos.z < obstacle.maxZ + playerRadius
-        && nextY < obstacleTop(obstacle))) pos.y = nextY;
+        && nextY < obstacleTop(obstacle))) {
+        pos.y = nextY;
+      }
     }
     if (x || z) {
       runtime.controls.getDirection(forward);
@@ -451,9 +448,29 @@ export async function startCampus() {
       forward.normalize();
       right.set(-forward.z, 0, forward.x);
       movement.copy(forward).multiplyScalar(z).addScaledVector(right, x).normalize().multiplyScalar(walkingSpeed * speed * dt);
-      const obstacles = kit.colliders.filter((obstacle) => pos.y < obstacleTop(obstacle));
-      walkWithCollision(pos, movement.x, movement.z, obstacles, map.boundary);
+      if (pos.y < 0.2 && insidePool) {
+        pos.x += movement.x;
+        pos.z += movement.z;
+        opening.local(pos, poolLocal);
+        const clampInset = THREE.MathUtils.clamp(pool.depth / 2 - poolLocal.z, playerRadius + 0.3, pool.depth - playerRadius - 0.3);
+        const clampLocalX = THREE.MathUtils.clamp(poolLocal.x, -pool.width / 2 + playerRadius + 0.3, pool.width / 2 - playerRadius - 0.3);
+        poolLocal.x = clampLocalX;
+        poolLocal.z = pool.depth / 2 - clampInset;
+        pos.copy(poolLocal).applyMatrix4(ground.poolRoot.matrixWorld);
+      } else {
+        const obstacles = kit.colliders.filter((obstacle) => pos.y < obstacleTop(obstacle));
+        walkWithCollision(pos, movement.x, movement.z, obstacles, map.boundary);
+      }
     }
+
+    opening.local(pos, poolLocal);
+    const currentInset = pool.depth / 2 - poolLocal.z;
+    const currentlyInPool = poolPlaced && Math.abs(poolLocal.x) < pool.width / 2 && currentInset > 0 && currentInset < pool.depth;
+    const isUnderwater = currentlyInPool && pos.y < waterY;
+    if (isUnderwater && pos.distanceTo(ground.portal.position) <= pool.triggerRadius) {
+      dive();
+    }
+
     // Use the displacement after collision and altitude limits, in camera-relative axes.
     const displacement = movement.subVectors(pos, flightOrigin);
     const maxStep = walkingSpeed * walkingBoost * dt;
@@ -461,7 +478,8 @@ export async function startCampus() {
       document.hasFocus(),
       displacement.dot(right) / maxStep,
       displacement.dot(forward) / maxStep,
-      displacement.y / (droneClimbSpeed * walkingBoost * dt)
+      displacement.y / (droneClimbSpeed * walkingBoost * dt),
+      isUnderwater
     );
   }
 
@@ -470,7 +488,7 @@ export async function startCampus() {
     if (stop.key === '4' && !kit.layout.objects.has('pool')) runtime.announce('Place the swimming pool from the deck to visit it.');
     else teleport(stop);
   }]));
-  runtime.ready({ ...weather.actions, ...stopActions, KeyP: dive, KeyO: dive, KeyE: editor.toggle, KeyF: toggleDrone, KeyM: toggleMute });
+  runtime.ready({ ...weather.actions, ...stopActions, KeyP: dive, KeyO: dive, KeyE: editor.toggle, KeyM: toggleMute });
   poolButton.disabled = !kit.layout.objects.has('pool');
   if (new URLSearchParams(location.search).has('editor')) {
     editor.toggle();
@@ -479,37 +497,10 @@ export async function startCampus() {
   runtime.loop((dt, time, view) => {
     editor.update();
     const roaming = runtime.active && !runtime.leaving;
-    if (roaming && drone) fly(dt, runtime.down('ShiftLeft', 'ShiftRight'));
-    else if (drone) droneAudio.update(false);
-    if (roaming && !drone) {
-      const [x, z] = movementAxes(runtime);
-      if (x || z) {
-        activeStop = null;
-        const boosted = runtime.down('ShiftLeft', 'ShiftRight');
-        const speed = boosted ? walkingSpeed * walkingBoost : walkingSpeed;
-        runtime.controls.getDirection(forward);
-        forward.y = 0;
-        forward.normalize();
-        right.set(-forward.z, 0, forward.x);
-        movement.copy(forward).multiplyScalar(z).addScaledVector(right, x).normalize().multiplyScalar(speed * dt);
-        walkWithCollision(camera.position, movement.x, movement.z, kit.colliders, map.boundary);
-      }
-      const pos = camera.position;
-      opening.local(pos, poolLocal);
-      const inset = pool.depth / 2 - poolLocal.z;
-      const inside = kit.layout.objects.has('pool') && Math.abs(poolLocal.x) < pool.width / 2 && inset > 0 && inset < pool.depth;
-      if (inside) {
-        const onSteps = Math.abs(poolLocal.x) < 1.82 && inset < 2.6;
-        const stepTop = -0.28 - Math.floor(inset / 0.52) * 0.37;
-        const scaleY = ground.poolRoot.scale.y;
-        const basinDepth = Math.max((pool.bottomY + 0.15) * scaleY,
-          Math.min(-1.53 * scaleY, ground.portal.position.y + pool.triggerRadius / 2));
-        const target = onSteps ? Math.max(basinDepth, (stepTop + 0.54) * scaleY) : basinDepth;
-        pos.y = THREE.MathUtils.damp(pos.y, target, 6.3, dt);
-        if (pos.y < pool.waterY * scaleY && pos.distanceTo(ground.portal.position) <= pool.triggerRadius) dive();
-      } else {
-        pos.y = eyeHeight;
-      }
+    if (roaming) {
+      fly(dt, runtime.down('ShiftLeft', 'ShiftRight'));
+    } else {
+      droneAudio.update(false);
     }
     ground.update(time, weather.update(dt, view, editor.active));
     opening.syncMaterials();

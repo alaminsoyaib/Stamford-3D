@@ -17,7 +17,7 @@
     }
   </script>
 </head>
-<body class="ocean" data-active="false" data-ready="false">
+<body class="ocean" data-active="false" data-ready="false" data-drone="true">
   <canvas id="world" aria-label="Interactive 3D underwater environment" tabindex="-1"></canvas>
   <div class="vignette" aria-hidden="true"></div>
 
@@ -68,15 +68,16 @@
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 10H5m4-4-4 4 4 4"/></svg>
           Campus <kbd>P</kbd>
         </button>
+        <button type="button" class="scene-action" data-action="KeyM" aria-pressed="false" disabled>Sound <kbd>M</kbd></button>
       </div>
     </div>
     <div class="touch-drive" role="group" aria-label="On-screen movement">
-      <button type="button" data-move="KeyW" aria-label="Swim forward">↑</button>
-      <button type="button" data-move="KeyA" aria-label="Swim left">←</button>
-      <button type="button" data-move="KeyS" aria-label="Swim back">↓</button>
-      <button type="button" data-move="KeyD" aria-label="Swim right">→</button>
-      <button class="rise" type="button" data-move="Space" aria-label="Ascend">Rise</button>
-      <button class="sink" type="button" data-move="KeyC" aria-label="Descend">Sink</button>
+      <button type="button" data-move="KeyW" aria-label="Fly forward">↑</button>
+      <button type="button" data-move="KeyA" aria-label="Fly left">←</button>
+      <button type="button" data-move="KeyS" aria-label="Fly back">↓</button>
+      <button type="button" data-move="KeyD" aria-label="Fly right">→</button>
+      <button class="rise" type="button" data-move="ArrowUp" aria-label="Ascend">Rise</button>
+      <button class="sink" type="button" data-move="ArrowDown" aria-label="Descend">Sink</button>
     </div>
     <button type="button" id="pause" class="pause-button" aria-label="Pause exploration">Ⅱ</button>
     <div class="notice" id="notice" role="status" hidden></div>

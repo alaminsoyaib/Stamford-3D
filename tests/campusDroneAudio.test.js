@@ -17,7 +17,7 @@ test('createDroneAudio mute toggling and level clamping', async () => {
   class MockBiquadFilter {
     constructor() {
       this.frequency = { value: 3800, setTargetAtTime: (val) => { this.frequency.value = val; } };
-      this.Q = { value: 0.35 };
+      this.Q = { value: 0.35, setTargetAtTime: (val) => { this.Q.value = val; } };
     }
     connect(dest) { return dest; }
   }
@@ -74,4 +74,12 @@ test('createDroneAudio mute toggling and level clamping', async () => {
   const unmutedState = droneAudio.toggleMute();
   assert.equal(unmutedState, false, 'toggleMute should return false when unmuted');
   assert.equal(droneAudio.muted, false, 'droneAudio.muted should be false');
+
+  // Test underwater drone mode
+  assert.equal(droneAudio.underwater, false, 'Should start above water by default');
+  droneAudio.update(true, 0, 1, 0, true);
+  assert.equal(droneAudio.underwater, true, 'Should switch to underwater drone mode');
+
+  droneAudio.update(true, 0, 1, 0, false);
+  assert.equal(droneAudio.underwater, false, 'Should switch back to aerial mode');
 });
