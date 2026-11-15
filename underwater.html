@@ -42,7 +42,14 @@
       </div>
     </section>
 
-    <aside class="instrument ocean-instrument" aria-label="Depth and coordinates" hidden>
+    <div class="camera-coordinates" role="group" aria-label="Camera coordinates in metres" hidden>
+      <span><b>X</b> <output id="coord-x" aria-live="off">—</output></span>
+      <span><b>Y</b> <output id="coord-y" aria-live="off">—</output></span>
+      <span><b>Z</b> <output id="coord-z" aria-live="off">—</output></span>
+      <span>m</span>
+    </div>
+
+    <aside class="instrument ocean-instrument" aria-label="Depth" hidden>
       <div class="instrument-top"><span><i class="signal"></i> Depth</span><span>↓</span></div>
       <div class="depth-readout"><output id="depth-value">0.0</output><span>m</span></div>
       <div class="depth-chart">
@@ -52,11 +59,6 @@
         <div class="depth-labels" aria-hidden="true">
           <span>0</span><span>120 m</span>
         </div>
-      </div>
-      <div class="telemetry">
-        <span><b>X</b> <output id="coord-x">—</output></span>
-        <span><b>Y</b> <output id="coord-y">—</output></span>
-        <span><b>Z</b> <output id="coord-z">—</output></span>
       </div>
     </aside>
 

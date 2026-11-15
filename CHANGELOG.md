@@ -6,6 +6,7 @@ Record completed changes here, with verification when it helps a future handoff.
 
 ### Added
 
+- Added an upper-right development readout for live camera X, Y, and Z on campus and underwater. Verified campus pointer lock, checkpoint changes, pause and editor visibility, and touch descent at 320 px in Chromium. The Vite production build keeps the readout hidden.
 - Added a first-person campus drone mode with WASD, Shift boost, altitude controls, and synthesized directional rotor audio.
 
 - Added placement deck category filter tabs (**Buildings**, **Trees**, **Facilities**, **Doors**, and **All**) with dynamic badge counts, organizing stored campus items into distinct categories with an "All" overview and immediate filtering.

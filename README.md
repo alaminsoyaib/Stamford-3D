@@ -42,6 +42,8 @@ At checkpoint 4, walk forward down the pool steps to cross the portal by proximi
 
 Press **F** during campus exploration, or select **Drone** while paused. The view starts from your current position at walking height. Use **WASD** to fly, **↑ / ↓** to change altitude between **1.7 m and 80 m**, and hold **Shift** to boost. Releasing the altitude keys holds that level. Touch controls include **Rise**, **Sink**, and **Boost**. The rotor recording spools up as you fly faster, pans with strafing, and changes tone when you climb or descend.
 
+For development screenshots, the exploration HUD shows the camera’s **X**, **Y**, and **Z** in world metres near the upper right. The readout stays visible on pause and updates as you walk, fly, swim, or jump to a checkpoint. It is available with the local static server and Vite development server, and hidden in the Vite production build.
+
 ## Edit the campus layout
 
 Press **E** or select **Layout editor** to open the overhead view. Click a building or prop to select it, or choose it from the **Object** list. Drag an object directly to move it. Drag empty space to pan, scroll or pinch to zoom, and right-drag to orbit. **Snap to grid** controls placement and dragging. **Frame selection** centers the selected object and **Tilt view** exposes the vertical scale handle.
