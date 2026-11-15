@@ -13,10 +13,10 @@ import { buildCSEAdmission } from './zoneB_CSEAdmission.js';
 import { buildGroundPool } from './zoneC_GroundPool.js';
 
 const playerRadius = 0.29;
-const walkingSpeed = 5.15;
-const walkingBoost = 1.65;
+const walkingSpeed = 9.0;
+const walkingBoost = 1.9;
 const droneCeiling = 80;
-const droneClimbSpeed = 7;
+const droneClimbSpeed = 12;
 const headingNames = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
 
 function buildWall(root, m, length, height) {
@@ -199,7 +199,7 @@ export async function startCampus() {
   const response = await fetch(new URL('../CAMPUS_MAP.json', import.meta.url));
   if (!response.ok) throw new Error(`Campus map request failed (${response.status})`);
   const { map, save, saveLayout: persistLayout } = readCampusLayout(await response.text());
-  const runtime = createRuntime({ fov: 63, far: 220, shadows: true, shiftStrafe: true, resumeLabel: 'Resume walk' });
+  const runtime = createRuntime({ fov: 63, far: 220, shadows: true, shiftStrafe: true, resumeLabel: 'Resume flight' });
   const { scene, camera } = runtime;
   const kit = createCampusKit(map);
   const site = buildCampusSite(scene, kit);
@@ -244,10 +244,17 @@ export async function startCampus() {
   const eyeHeight = map.coordinateSystem.eyeHeight;
   const droneAudio = createDroneAudio();
   const droneButton = document.querySelector('[data-action="KeyF"]');
+  const muteButton = document.querySelector('[data-action="KeyM"]');
   const droneAltitude = document.getElementById('drone-altitude');
   const obstacleBounds = new THREE.Box3();
   const flightOrigin = new THREE.Vector3();
-  let drone = false;
+  let drone = true;
+  document.body.dataset.drone = 'true';
+  if (droneButton) droneButton.setAttribute('aria-pressed', 'true');
+  if (droneAltitude) {
+    droneAltitude.hidden = false;
+    droneAltitude.value = `Drone · ${eyeHeight.toFixed(1)} m`;
+  }
   let obstacleTops = new WeakMap();
   let lastArea;
   let activeStop = null;
@@ -312,7 +319,9 @@ export async function startCampus() {
       runtime.announce('This layout blocks the checkpoint. Move objects to clear a path.');
       return;
     }
-    camera.position.set(position[0], drone ? camera.position.y : eyeHeight, position[1]);
+    const currentY = camera.position.y;
+    const altitude = drone ? (currentY > 0 ? currentY : eyeHeight) : eyeHeight;
+    camera.position.set(position[0], altitude, position[1]);
     camera.lookAt(...stop.lookAt);
     activeStop = stop.key;
     updateHud();
@@ -383,9 +392,11 @@ export async function startCampus() {
     document.body.dataset.briefing = 'compact';
     droneButton.setAttribute('aria-pressed', String(drone));
     droneAltitude.hidden = !drone;
+    const startSpan = document.getElementById('start')?.firstElementChild;
+    if (startSpan) startSpan.textContent = drone ? 'Resume flight' : 'Resume walk';
     if (drone) {
       camera.position.y = THREE.MathUtils.clamp(camera.position.y, eyeHeight, droneCeiling);
-      droneAudio.start();
+      if (!droneAudio.muted) droneAudio.start();
     } else {
       droneAudio.update(false);
       camera.position.y = eyeHeight;
@@ -394,8 +405,20 @@ export async function startCampus() {
     updateHud();
   }
 
+  function toggleMute() {
+    const isMuted = droneAudio.toggleMute();
+    if (muteButton) {
+      muteButton.setAttribute('aria-pressed', String(isMuted));
+      muteButton.innerHTML = isMuted ? 'Muted <kbd>M</kbd>' : 'Sound <kbd>M</kbd>';
+    }
+    runtime.announce(isMuted ? 'Drone sound muted' : 'Drone sound active');
+  }
+
   document.getElementById('start').addEventListener('click', () => {
-    if (drone) droneAudio.start();
+    if (drone && !droneAudio.muted) droneAudio.start();
+  });
+  runtime.controls.addEventListener('lock', () => {
+    if (drone && !droneAudio.muted) droneAudio.start();
   });
 
   function obstacleTop({ group }) {
@@ -409,7 +432,7 @@ export async function startCampus() {
     if (dt <= 0) return;
     const x = Number(runtime.down('KeyD')) - Number(runtime.down('KeyA'));
     const z = Number(runtime.down('KeyW')) - Number(runtime.down('KeyS'));
-    const climb = Number(runtime.down('ArrowUp')) - Number(runtime.down('ArrowDown'));
+    const climb = Number(runtime.down('ArrowUp', 'PointerLeft')) - Number(runtime.down('ArrowDown', 'PointerRight'));
     const speed = boosted ? walkingBoost : 1;
     const pos = camera.position;
     flightOrigin.copy(pos);
@@ -447,7 +470,7 @@ export async function startCampus() {
     if (stop.key === '4' && !kit.layout.objects.has('pool')) runtime.announce('Place the swimming pool from the deck to visit it.');
     else teleport(stop);
   }]));
-  runtime.ready({ ...weather.actions, ...stopActions, KeyP: dive, KeyO: dive, KeyE: editor.toggle, KeyF: toggleDrone });
+  runtime.ready({ ...weather.actions, ...stopActions, KeyP: dive, KeyO: dive, KeyE: editor.toggle, KeyF: toggleDrone, KeyM: toggleMute });
   poolButton.disabled = !kit.layout.objects.has('pool');
   if (new URLSearchParams(location.search).has('editor')) {
     editor.toggle();

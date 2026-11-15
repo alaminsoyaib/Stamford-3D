@@ -17,6 +17,7 @@ export function createRuntime({ fov, far, shadows = false, shiftStrafe = false, 
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
   const keys = new Set();
   const heldButtons = new Map();
+  const mouseButtons = new Set();
   const euler = new THREE.Euler(0, 0, 0, 'YXZ');
   const buttons = [...document.querySelectorAll('[data-action]')];
   let renderer;
@@ -75,6 +76,7 @@ export function createRuntime({ fov, far, shadows = false, shiftStrafe = false, 
   function clearMovement() {
     keys.clear();
     heldButtons.clear();
+    mouseButtons.clear();
     dragPointer = null;
   }
 
@@ -129,12 +131,25 @@ export function createRuntime({ fov, far, shadows = false, shiftStrafe = false, 
   document.getElementById('pause').addEventListener('click', pause);
 
   canvas.addEventListener('pointerdown', (event) => {
-    if (!active || document.body.dataset.mode !== 'drag' || dragPointer !== null || event.button !== 0) return;
+    if (!active || alternateCamera) return;
+    if (document.body.dataset.mode === 'lock') {
+      if (event.button === 0) mouseButtons.add('PointerLeft');
+      else if (event.button === 2) mouseButtons.add('PointerRight');
+      return;
+    }
+    if (document.body.dataset.mode !== 'drag' || dragPointer !== null || event.button !== 0) return;
     dragPointer = event.pointerId;
     dragX = event.clientX;
     dragY = event.clientY;
     canvas.setPointerCapture(event.pointerId);
     canvas.focus({ preventScroll: true });
+  });
+  window.addEventListener('pointerup', (event) => {
+    if (event.button === 0) mouseButtons.delete('PointerLeft');
+    else if (event.button === 2) mouseButtons.delete('PointerRight');
+  });
+  window.addEventListener('contextmenu', (event) => {
+    if (active && document.body.dataset.mode === 'lock') event.preventDefault();
   });
   canvas.addEventListener('pointermove', (event) => {
     if (event.pointerId !== dragPointer) return;
@@ -219,7 +234,7 @@ export function createRuntime({ fov, far, shadows = false, shiftStrafe = false, 
     },
     down(...codes) {
       for (const code of codes) {
-        if (keys.has(code)) return true;
+        if (keys.has(code) || mouseButtons.has(code)) return true;
         for (const held of heldButtons.values()) if (held === code) return true;
       }
       return false;

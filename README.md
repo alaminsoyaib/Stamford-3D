@@ -20,10 +20,11 @@ Select **Enter campus** or **Begin descent** to switch from the illustrated land
 
 | Key | Action |
 | --- | --- |
-| WASD or arrow keys | Walk or swim horizontally |
-| Shift + WASD or arrow keys | Walk 65% faster on campus |
+| WASD or arrow keys | Walk, fly, or swim horizontally |
+| Shift + WASD or arrow keys | Sprint at boosted speed on campus (90% faster) |
 | Shift + Q / E | Strafe left / right at boosted speed on campus |
-| Mouse | Look after selecting **Enter campus** or **Begin descent** |
+| Mouse look | Look after selecting **Enter campus** or **Begin descent** |
+| Left-click / Right-click | Ascend / descend drone altitude (like ↑ / ↓) |
 | Esc | Release the pointer and pause |
 | 1 | Main gate and front garden |
 | 2 | CSE, Admission Wing, bus and the library route |
@@ -34,13 +35,14 @@ Select **Enter campus** or **Begin descent** to switch from the illustrated land
 | V | Cycle Summer, Autumn and Winter Fog |
 | P | Switch directly between campus and deep sea (preserves roaming or landing view) |
 | E | Open or exit the campus layout editor |
-| F | Toggle the campus drone view |
+| F | Toggle campus drone mode and walking view |
+| M | Toggle drone sound mute and unmute |
 | Space | Ascend in the ocean |
 | Shift or C | Descend in the ocean |
 
 At checkpoint 4, walk forward down the pool steps to cross the portal by proximity. The vertical return ring sits at `(8, -2, -3.3)` in the ocean and brings you back to the pool deck. After an automatic arrival, drag to look. On desktop, pause and resume to re-enable pointer lock. Touch devices can use on-screen movement controls.
 
-Press **F** during campus exploration, or select **Drone** while paused. The view starts from your current position at walking height. Use **WASD** to fly, **↑ / ↓** to change altitude between **1.7 m and 80 m**, and hold **Shift** to boost. Releasing the altitude keys holds that level. Touch controls include **Rise**, **Sink**, and **Boost**. The rotor recording spools up as you fly faster, pans with strafing, and changes tone when you climb or descend.
+Drone mode is enabled by default upon entering the campus, starting from your current position at walking height. Press **F** during campus exploration, or select **Drone** while paused, to switch between drone flight and walking. Use **WASD** to fly, **↑ / ↓** or **Left-click / Right-click** to change altitude between **1.7 m and 80 m**, and hold **Shift** to boost. Releasing the altitude keys or mouse buttons holds that level. Press **M** or select **Sound** while paused to mute or unmute the drone rotor sound. Touch controls include **Rise**, **Sink**, and **Boost**. The rotor recording spools up as you fly faster, pans with strafing, and changes tone when you climb or descend.
 
 ## Edit the campus layout
 

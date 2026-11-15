@@ -6,7 +6,14 @@ Record completed changes here, with verification when it helps a future handoff.
 
 ### Added
 
-- Added a first-person campus drone mode with WASD, Shift boost, altitude controls, and synthesized directional rotor audio.
+- Enabled campus drone mode by default upon entering the campus, starting at walking height (1.7 m) with active rotor audio, while preserving `F` key and pause action toggling between drone flight and walking.
+- Added mouse altitude controls in drone mode: Left-click ascends and Right-click descends (just like the Up and Down arrow keys), with context-menu prevention and automatic altitude clamping between 1.7 m and 80 m.
+- Added `M` shortcut and HUD action button to toggle drone rotor audio mute/unmute with smooth gain transitions and screen announcements.
+- Added unit tests for drone audio mute/unmute behavior in `tests/campusDroneAudio.test.js`.
+
+### Changed
+
+- Significantly increased campus movement speeds across both walking/flight and sprint: base speed increased from 5.15 m/s to 9.0 m/s (~75% faster), sprint boost increased to 1.9× (17.1 m/s, over 100% faster), and vertical climb speed increased from 7 m/s to 12 m/s.
 
 - Added placement deck category filter tabs (**Buildings**, **Trees**, **Facilities**, **Doors**, and **All**) with dynamic badge counts, organizing stored campus items into distinct categories with an "All" overview and immediate filtering.
 - Added duplicate building stacking on the placement deck: multiple identical building duplicates collapse into a single card displaying a count badge (`×N`), while resized or altered buildings automatically generate distinct cards labeled with their exact dimensions and floor counts.

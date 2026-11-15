@@ -7,6 +7,7 @@ export function createDroneAudio() {
   let lastCutoff = 3800;
   let lastPan = 0;
   let lastLevel = 0;
+  let muted = false;
 
   async function loadRecording(fallbackLevel) {
     const response = await fetch(rotorRecording);
@@ -56,6 +57,16 @@ export function createDroneAudio() {
     context.resume().catch(() => {});
   }
 
+  function toggleMute() {
+    muted = !muted;
+    if (!muted) {
+      start();
+    } else if (context) {
+      volume.gain.setTargetAtTime(lastLevel = 0, context.currentTime, 0.05);
+    }
+    return muted;
+  }
+
   function update(active, side = 0, forward = 0, vertical = 0) {
     if (!context) return;
     // The velocity components are signed and normalized against the top speed on each axis.
@@ -65,7 +76,7 @@ export function createDroneAudio() {
     const rate = Math.round(100 * (1 + travel * 0.25 + forward * 0.09 + climb * 0.24 + Math.min(0, vertical) * 0.11)) / 100;
     const cutoff = Math.round((3800 + travel * 2500 + forward * 1100 + vertical * 1100) / 50) * 50;
     const pan = Math.round(side * 65) / 100;
-    const level = active ? Math.round(100 * (0.22 + load * 0.23)) / 100 : 0;
+    const level = (!muted && active) ? Math.round(100 * (0.22 + load * 0.23)) / 100 : 0;
     const now = context.currentTime;
     if (rate !== lastRate) {
       const spool = rate > lastRate ? 0.15 : 0.24;
@@ -82,5 +93,10 @@ export function createDroneAudio() {
   addEventListener('blur', quiet);
   addEventListener('pagehide', quiet);
   document.addEventListener('visibilitychange', () => { if (document.hidden) quiet(); });
-  return { start, update };
+  return {
+    start,
+    update,
+    toggleMute,
+    get muted() { return muted; }
+  };
 }
