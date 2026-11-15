@@ -8,6 +8,7 @@ Record completed changes here, with verification when it helps a future handoff.
 
 - Added direct object dragging with grid snapping, a searchable placement deck, building and prop duplication, and an undoable **Clear to deck** action. Stored buildings retain their doors, and the pool retains its portal.
 - Added a land boundary tool for drawing and reshaping a polygon. The applied outline drives terrain, placement, walking, and the minimap. Browser saves and JSON export include the outline and deck.
+- Added an empty Stamford campus preset traced from the supplied Google Maps measurement. Loading it applies the outline and puts placed pieces in the deck as one undoable action.
 - Added `package.json` and `vite.config.js` configuring multi-page bundling (`index.html` and `underwater.html`) and local development via `npm run dev` (`127.0.0.1:8090`).
 - Added live in-browser Layout Editor Mode toggled with `[E]`, supporting raycast landmark picking, `THREE.BoxHelper` visual selection highlights, arrow key translation (1m step, 5m with Shift), rotation (`Q`/`T` by 15°), real-time collider bounds synchronization, and one-click JSON clipboard export & map download.
 - Preserved hierarchical static mesh batching across modular landmarks so buildings remain translated/rotated and picked as cohesive units.
@@ -19,6 +20,7 @@ Record completed changes here, with verification when it helps a future handoff.
 
 ### Changed
 
+- Expanded the campus placement deck across the viewport and added previews rendered from the campus models. Card dragging now uses mouse, pen, or touch input, with a floating image and the snapped footprint.
 - Added bi-directional scene switching with keyboard shortcut `P` (and `O` on campus, `C` on ocean landing) between Stamford Campus and Deep Sea: switching while roaming seamlessly loads the destination scene directly in active roaming mode; switching while on the landing briefing view (with the enter button) loads the destination scene on its matching landing view.
 - Streamlined the campus HUD location badge: removed redundant zone code text (e.g., "ZONE D") to create a compact, single-row height badge, and added a vector SVG map pinpoint/location icon to the left of the area name.
 - Replaced the campus landing illustration with a render of the existing CSE building, preserving its lattice façade, windows, doors, and university sign. The preview fits the current model dimensions and releases its rendering resources after capture.
@@ -32,6 +34,8 @@ Record completed changes here, with verification when it helps a future handoff.
 
 ### Verification
 
+- Verified preset loading on desktop and touch, one-step undo and redo, placement limits, JSON export and reload, and both physical portal crossings after placing the pool on the new outline.
+- Checked the tray on desktop and narrow screens. Verified model thumbnails, on-demand rendering, mouse and touch placement, horizontal swiping, undo, and desktop pointer lock. Both pages built with Vite.
 - Verified both physical portal crossings, desktop pointer lock on entry, and the touch portal buttons after combining the portal shortcuts with the campus editor changes. Automatic arrivals use drag-to-look.
 - Verified bi-directional `P` key shortcut transitions via browser tests: switching from Campus landing view loads Deep Sea landing view; pressing `P` again returns to Campus landing view; clicking "Enter campus" and pressing `P` while roaming smoothly transitions directly to active roaming view in Deep Sea (`?roam=1`); pressing `P` while roaming underwater returns directly to active roaming view at the Swimming Pool (`?arrival=pool&roam=1`).
 

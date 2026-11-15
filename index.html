@@ -133,6 +133,9 @@
         </fieldset>
       </div>
       <div id="editor-land" hidden>
+        <div class="editor-actions editor-view-tools">
+          <button type="button" id="editor-land-preset" title="Apply the university outline and move placed objects to the deck">Load empty Stamford campus</button>
+        </div>
         <div class="editor-land-summary"><output id="editor-land-size"></output><output id="editor-land-corners"></output></div>
         <p id="editor-land-help" class="editor-placement"></p>
         <div class="editor-values">
@@ -156,17 +159,17 @@
     <section id="editor-deck" class="editor-deck" hidden aria-labelledby="editor-deck-title">
       <div class="editor-deck-header">
         <h2 id="editor-deck-title">Placement deck <output id="editor-deck-count">0</output></h2>
+        <div class="editor-palette" role="group" aria-label="New objects">
+          <button type="button" data-place="building" aria-pressed="false">+ Building</button>
+          <button type="button" data-place="tree" aria-pressed="false">+ Tree</button>
+          <button type="button" data-place="door" aria-pressed="false">+ Door</button>
+        </div>
+        <input type="search" id="editor-deck-search" placeholder="Find stored objects" aria-label="Find stored objects" hidden>
         <div class="editor-history" role="group" aria-label="Edit history">
           <button type="button" id="editor-undo" title="Undo (Ctrl+Z)" disabled>Undo</button>
           <button type="button" id="editor-redo" title="Redo (Ctrl+Shift+Z)" disabled>Redo</button>
+          <button type="button" id="editor-clear">Clear to deck</button>
         </div>
-        <button type="button" id="editor-clear">Clear to deck</button>
-      </div>
-      <div class="editor-palette" role="group" aria-label="New objects">
-        <button type="button" draggable="true" data-place="building" aria-pressed="false">+ Building</button>
-        <button type="button" draggable="true" data-place="tree" aria-pressed="false">+ Tree</button>
-        <button type="button" draggable="true" data-place="door" aria-pressed="false">+ Door</button>
-        <input type="search" id="editor-deck-search" placeholder="Find stored objects" aria-label="Find stored objects" hidden>
       </div>
       <div id="editor-deck-list" class="editor-deck-list" aria-label="Stored objects" hidden></div>
       <div id="editor-feedback" class="editor-feedback" role="status" hidden></div>

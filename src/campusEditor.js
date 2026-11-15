@@ -4,7 +4,10 @@ import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import { maxBuildingFloors, maxBuildingSpan } from './buildingFactory.js';
 import { limitScale, rounded } from './campusLayout.js';
 import { fitsLand, insideLand, landExtent } from './campusBoundary.js';
+import { createDeckDrag } from './campusDeckDrag.js';
+import { createDeckPreviews } from './campusDeckPreviews.js';
 import { createLandEditor } from './campusLandEditor.js';
+import { stamfordLandOutline } from './campusLandPresets.js';
 
 const modes = { KeyG: 'translate', KeyR: 'rotate', KeyS: 'scale' };
 const nudges = { ArrowLeft: ['x', -1], ArrowRight: ['x', 1], ArrowUp: ['z', -1], ArrowDown: ['z', 1] };
@@ -69,7 +72,6 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
   let timer;
   let placement = null;
   let previewSize = null;
-  let cardDrag = false;
   let pendingDelete = null;
   let dimensions;
   let resizeQueued = false;
@@ -86,6 +88,31 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
       mode(gizmo.getMode());
     }
   });
+  const previews = createDeckPreviews(deckList);
+  const deckDrag = createDeckDrag(deck, canvas, {
+    canPick: () => active && !gizmo.dragging && !pointer?.captured && !confirm.open,
+    pick(next, dragging) {
+      previews.pause(dragging);
+      const same = placement?.kind === next.kind && placement.type === next.type && placement.entry === next.entry;
+      setPlacement(same && !dragging ? null : next);
+    },
+    preview(point) {
+      if (point) return showPlacement(point);
+      footprint.visible = false;
+      return false;
+    },
+    finish(point) {
+      try {
+        if (point) place(point);
+        if (placement) setPlacement(null, Boolean(point));
+      } finally {
+        previews.pause(false);
+      }
+    }
+  });
+  new ResizeObserver(() => {
+    panel.style.setProperty('--editor-deck-height', `${deck.offsetHeight}px`);
+  }).observe(deck);
 
   outline.material.depthTest = false;
   outline.material.fog = false;
@@ -424,10 +451,10 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
   }
 
   function showPlacement(event) {
-    if (!active || !placement) return;
+    if (!active || !placement) return false;
     const target = placementTarget(event);
     footprint.visible = Boolean(target);
-    if (!target) return;
+    if (!target) return false;
     if (target.wall) {
       const { entry, wall, offset } = target;
       const along = THREE.MathUtils.clamp(offset * wall.span / 2, -wall.span / 2 + 0.9, wall.span / 2 - 0.9);
@@ -442,9 +469,10 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
       footprint.scale.set(previewSize.width, 1, previewSize.depth);
     }
     footprint.material.color.set(target.valid === false ? 0xf58f87 : 0x9fd9ff);
+    return target.valid !== false;
   }
 
-  function setPlacement(next = null) {
+  function setPlacement(next = null, keepFeedback = false) {
     placement = next;
     footprint.visible = false;
     if (next) {
@@ -475,7 +503,7 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
       const instruction = next.kind === 'new' ? placeTips[next.type]
         : next.entry.buildingId ? 'Choose a wall of the original building.' : `Choose a spot for ${next.entry.label}.`;
       message(instruction);
-    } else feedback.hidden = true;
+    } else if (!keepFeedback) feedback.hidden = true;
   }
 
   function place(event) {
@@ -508,42 +536,16 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
     message(`${entry.label} placed.`);
   }
 
-  function bindPlacement(button, getPlacement) {
-    button.addEventListener('click', () => {
-      if (gizmo.dragging || pointer?.dragging) return;
-      const next = getPlacement();
-      setPlacement(placement?.kind === next.kind && placement.type === next.type && placement.entry === next.entry ? null : next);
-    });
-    button.addEventListener('dragstart', (event) => {
-      if (gizmo.dragging) {
-        event.preventDefault();
-        return;
-      }
-      cardDrag = true;
-      const next = getPlacement();
-      setPlacement(next);
-      event.dataTransfer.setData('text/plain', next.entry?.label ?? next.type);
-      event.dataTransfer.effectAllowed = next.kind === 'stored' ? 'move' : 'copy';
-    });
-    button.addEventListener('dragend', () => {
-      cardDrag = false;
-      setPlacement();
-    });
-  }
-  for (const button of palette) bindPlacement(button, () => ({ kind: 'new', type: button.dataset.place }));
-  canvas.addEventListener('dragover', (event) => {
-    if (!active || !cardDrag || !placement) return;
-    event.preventDefault();
-    event.dataTransfer.dropEffect = placement.kind === 'stored' ? 'move' : 'copy';
-    showPlacement(event);
-  });
-  canvas.addEventListener('drop', (event) => {
-    if (!active || !cardDrag || !placement) return;
-    event.preventDefault();
-    place(event);
-  });
+  for (const button of palette) deckDrag.bind(button, () => ({ kind: 'new', type: button.dataset.place }));
   canvas.addEventListener('pointerleave', () => { if (!pointer?.dragging) footprint.visible = false; });
-  canvas.addEventListener('dragleave', () => { footprint.visible = false; });
+  deckList.addEventListener('wheel', (event) => {
+    if (event.ctrlKey || event.shiftKey || Math.abs(event.deltaX) >= Math.abs(event.deltaY)
+      || deckList.scrollWidth <= deckList.clientWidth || deckDrag.dragging) return;
+    event.preventDefault();
+    const scale = event.deltaMode === WheelEvent.DOM_DELTA_LINE ? 16
+      : event.deltaMode === WheelEvent.DOM_DELTA_PAGE ? deckList.clientWidth : 1;
+    deckList.scrollLeft += event.deltaY * scale;
+  }, { passive: false });
   function consume(event) {
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -556,6 +558,10 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
 
   function startPointer(event) {
     if (!active || event.button !== 0 || gizmo.dragging || event.altKey) return;
+    if (deckDrag.busy) {
+      consume(event);
+      return;
+    }
     if (!event.isPrimary) {
       if (pointer?.captured) consume(event);
       else pointer = null;
@@ -668,6 +674,7 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
   });
 
   function toggle() {
+    deckDrag.cancel();
     if (gizmo.dragging) gizmo.pointerUp(null);
     if (pointer?.captured) endPointer({ pointerId: pointer.id, type: 'lostpointercapture' }, true);
     active = !active;
@@ -682,6 +689,7 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
       fit();
       canvas.focus({ preventScroll: true });
     } else {
+      previews.reset();
       setPlacement();
       land.end();
       select(null);
@@ -720,11 +728,13 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
   }
 
   function refreshDeck() {
+    if (deckDrag.busy) deckDrag.cancel();
     const list = [...parked.values()].sort((a, b) => a.entry.label.localeCompare(b.entry.label));
     const query = deckSearch.value.trim().toLocaleLowerCase();
     const matches = list.filter(({ entry }) => entry.label.toLocaleLowerCase().includes(query));
     const scroll = deckList.scrollLeft;
-    deckList.replaceChildren();
+    previews.reset();
+    const cards = document.createDocumentFragment();
     for (const record of matches) {
       const { entry } = record;
       const card = document.createElement('div');
@@ -732,28 +742,31 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
       const placeButton = document.createElement('button');
       placeButton.type = 'button';
       placeButton.className = 'editor-place-card';
-      placeButton.textContent = entry.label;
+      const tile = document.createElement('span');
+      tile.className = 'editor-card-preview';
+      const caption = document.createElement('span');
+      caption.className = 'editor-card-caption';
+      caption.textContent = entry.label;
+      placeButton.append(tile, caption);
+      placeButton.title = entry.label;
       if (!entry.buildingId) {
         const { x, z } = entry.root.position;
-        const coordinates = document.createElement('span');
-        coordinates.className = 'editor-card-location';
-        coordinates.textContent = `${rounded(x)}, ${rounded(z)} m`;
-        placeButton.append(coordinates);
+        placeButton.title += ` · ${rounded(x)}, ${rounded(z)} m`;
       }
-      placeButton.title = entry.label;
       placeButton.setAttribute('aria-label', `Place ${entry.label}`);
-      placeButton.setAttribute('aria-pressed', 'false');
+      placeButton.setAttribute('aria-pressed', String(placement?.kind === 'stored' && placement.entry === entry));
       placeButton.dataset.stored = entry.id;
-      placeButton.draggable = kit.canRestore(record);
-      placeButton.disabled = !placeButton.draggable;
+      placeButton.disabled = !kit.canRestore(record);
       if (placeButton.disabled) placeButton.title = 'Place its building first';
-      bindPlacement(placeButton, () => ({ kind: 'stored', entry }));
+      deckDrag.bind(placeButton, () => ({ kind: 'stored', entry }));
+      previews.add(tile, entry);
       card.append(placeButton);
       if (entry.id !== 'pool') {
         const removeButton = document.createElement('button');
         removeButton.type = 'button';
         removeButton.className = 'editor-card-delete';
-        removeButton.textContent = 'Delete';
+        removeButton.textContent = '×';
+        removeButton.title = 'Delete from deck';
         removeButton.setAttribute('aria-label', `Delete ${entry.label} from deck`);
         removeButton.addEventListener('click', () => {
           pendingDelete = record;
@@ -763,14 +776,15 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
         });
         card.append(removeButton);
       }
-      deckList.append(card);
+      cards.append(card);
     }
     if (list.length && !matches.length) {
       const noResults = document.createElement('p');
       noResults.textContent = 'No matching stored objects.';
-      deckList.append(noResults);
+      cards.append(noResults);
     }
     deckCount.value = String(list.length);
+    deckList.replaceChildren(cards);
     deckList.hidden = !list.length;
     deckSearch.hidden = !list.length;
     if (!list.length) deckSearch.value = '';
@@ -798,7 +812,7 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
   }
 
   function stepHistory(forward) {
-    if (gizmo.dragging || pointer?.captured || confirm.open) return;
+    if (gizmo.dragging || pointer?.captured || deckDrag.busy || confirm.open) return;
     const source = forward ? redo : undo;
     const destination = forward ? undo : redo;
     const change = source.pop();
@@ -812,6 +826,7 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
     destination.push(change);
     updateHistory();
     finishLayoutChange();
+    if (change.fit) fit();
     message(forward ? 'Redid the last edit.' : 'Undid the last edit.');
   }
 
@@ -877,9 +892,14 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
     message(`${entry.label} placed.`);
   }
 
-  function clearToDeck() {
-    if (gizmo.dragging || pointer?.captured) return;
+  function clearToDeck(points) {
+    if (gizmo.dragging || pointer?.captured || deckDrag.busy) return;
+    const previous = kit.map.boundary;
+    const boundary = points && JSON.stringify(points) !== JSON.stringify(previous.points)
+      ? { ...previous, points: structuredClone(points) }
+      : previous;
     setPlacement();
+    if (points) land.end();
     let removals;
     function clear() {
       removals = [];
@@ -889,20 +909,26 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
         removals.push(removal);
         removeOptions(removal);
       }
+      kit.map.boundary = boundary;
       select(null);
     }
     clear();
-    deckSearch.value = '';
-    record({
-      undo() {
-        for (const removal of removals) removal.restore();
-        for (const entry of entries.values()) refreshEntry(entry);
-      },
-      redo: clear
-    });
-    finishLayoutChange();
+    if (removals.length || boundary !== previous) {
+      deckSearch.value = '';
+      record({
+        undo() {
+          kit.map.boundary = previous;
+          for (const removal of removals) removal.restore();
+          for (const entry of entries.values()) refreshEntry(entry);
+        },
+        redo: clear,
+        fit: boundary !== previous
+      });
+      finishLayoutChange();
+    }
     fit();
-    message(`Stored ${removals.length} objects.`);
+    if (points) canvas.focus({ preventScroll: true });
+    message(points ? 'Empty Stamford campus loaded.' : `Stored ${removals.length} objects.`);
   }
 
   function commitBoundary(boundary) {
@@ -935,7 +961,8 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
   }
 
   document.getElementById('editor-close').addEventListener('click', toggle);
-  clearButton.addEventListener('click', clearToDeck);
+  clearButton.addEventListener('click', () => clearToDeck());
+  document.getElementById('editor-land-preset').addEventListener('click', () => clearToDeck(stamfordLandOutline));
   storeButton.addEventListener('click', storeSelection);
   duplicateButton.addEventListener('click', duplicateSelection);
   undoButton.addEventListener('click', () => stepHistory(false));
@@ -1036,6 +1063,7 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
     }
     if (event.code === 'Escape') {
       event.preventDefault();
+      if (deckDrag.cancel()) return;
       if (pointer?.captured) endPointer({ pointerId: pointer.id, type: 'lostpointercapture' }, true);
       else if (placement) setPlacement();
       else if (land.active) land.end();
