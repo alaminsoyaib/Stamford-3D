@@ -93,6 +93,7 @@
         <button type="button" id="editor-fit">Fit campus</button>
         <button type="button" id="editor-tilt">Tilt view</button>
         <button type="button" id="editor-land-toggle" aria-pressed="false">Land boundary</button>
+        <button type="button" id="editor-slice" aria-pressed="false" title="Slice perimeter wall (C)">Slice wall <kbd>C</kbd></button>
       </div>
       <label class="editor-grid-control">Snap to grid
         <select id="editor-grid">
@@ -116,7 +117,6 @@
           <button type="button" data-editor-mode="translate" aria-pressed="true" disabled>Move <kbd>G</kbd></button>
           <button type="button" data-editor-mode="rotate" aria-pressed="false" disabled>Rotate <kbd>R</kbd></button>
           <button type="button" data-editor-mode="scale" aria-pressed="false" disabled>Scale <kbd>S</kbd></button>
-          <button type="button" id="editor-slice" aria-pressed="false" title="Slice perimeter wall (C)">Slice wall <kbd>C</kbd></button>
         </div>
         <fieldset id="editor-fields" disabled>
           <legend>Transform</legend>
@@ -132,15 +132,15 @@
           </div>
           <output id="editor-size-detail" class="editor-size-detail" hidden></output>
         </fieldset>
-        <fieldset id="editor-wall-fields" hidden>
-          <legend>Perimeter Wall Segment</legend>
-          <p id="editor-wall-length" class="editor-placement"></p>
-          <div class="editor-actions">
-            <button type="button" id="editor-wall-delete" class="editor-danger">Delete wall segment</button>
-            <button type="button" id="editor-wall-reset">Reset all walls</button>
-          </div>
-        </fieldset>
       </div>
+      <fieldset id="editor-wall-fields" hidden>
+        <legend>Perimeter Wall Segment</legend>
+        <p id="editor-wall-length" class="editor-placement"></p>
+        <div class="editor-actions">
+          <button type="button" id="editor-wall-delete" class="editor-danger">Delete wall segment</button>
+          <button type="button" id="editor-wall-reset">Reset all walls</button>
+        </div>
+      </fieldset>
       <div id="editor-land" hidden>
         <div class="editor-actions editor-view-tools">
           <button type="button" id="editor-land-preset" title="Apply the university outline and move placed objects to the deck">Load empty Stamford campus</button>

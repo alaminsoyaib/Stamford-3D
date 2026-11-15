@@ -614,7 +614,7 @@ kbd {
   color: var(--muted);
 }
 .editor-picker select, .editor-values input { width: 100%; }
-.editor-view-tools { margin-block: 7px 11px; }
+.editor-view-tools { margin-block: 7px 11px; flex-wrap: wrap; }
 .editor-modes button, .editor-actions button { flex: 1; }
 #editor-object-panel[data-selected="false"] > :is(.editor-view-tools, .editor-modes) { display: none; }
 .editor-palette { margin-right: auto; }
