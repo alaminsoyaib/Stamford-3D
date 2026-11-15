@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { addLocalCollider, sign } from './buildingFactory.js';
+import { buildGatePlatform } from './gatePlatform.js';
 import { batchStaticMeshes, box, cylinder, groupAt } from './sceneKit.js';
 
 export function buildGateGarden(scene, kit) {
@@ -40,6 +41,7 @@ export function buildGateGarden(scene, kit) {
   });
   kit.layout.add('entry-gate', gate);
   kit.refreshColliders(gate);
+  buildGatePlatform(zone, kit, gate);
 
   kit.building(zone, 'guard', 'guard', {
     awning: true,
