@@ -158,6 +158,7 @@
       <div class="editor-actions editor-save">
         <button type="button" id="editor-download-json" class="editor-export">Export JSON</button>
         <button type="button" id="editor-copy-json">Copy JSON</button>
+        <button type="button" id="editor-import-json">Import JSON</button>
       </div>
     </section>
     <section id="editor-deck" class="editor-deck" hidden aria-labelledby="editor-deck-title">
@@ -185,6 +186,23 @@
         <div class="editor-actions">
           <button value="cancel" autofocus>Cancel</button>
           <button value="delete" class="editor-danger">Delete</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="editor-import-dialog" class="editor-confirm editor-import-dialog" aria-labelledby="editor-import-title">
+      <form method="dialog" id="editor-import-form">
+        <h2 id="editor-import-title">Import campus layout</h2>
+        <p class="editor-import-desc">Choose an exported <code>CAMPUS_MAP.json</code> file or paste JSON code below:</p>
+        <div class="editor-import-file-row">
+          <input type="file" id="editor-import-file" accept=".json,application/json" hidden>
+          <button type="button" id="editor-import-browse">Choose JSON file…</button>
+          <span id="editor-import-filename" class="editor-import-filename">No file selected</span>
+        </div>
+        <textarea id="editor-import-text" class="editor-import-text" rows="7" placeholder="Paste CAMPUS_MAP.json content here..."></textarea>
+        <div id="editor-import-feedback" class="editor-feedback editor-import-error" role="status" hidden></div>
+        <div class="editor-actions">
+          <button type="button" id="editor-import-cancel">Cancel</button>
+          <button type="button" id="editor-import-apply" class="editor-export">Apply layout</button>
         </div>
       </form>
     </dialog>

@@ -762,6 +762,57 @@ kbd {
 .editor-confirm::backdrop { background: #030916aa; }
 .editor-confirm p { color: var(--muted); line-height: 1.45; margin: 10px 0 15px; }
 .editor-confirm .editor-danger { color: #3b1411; background: #ffc1b9; border-color: #ffc1b9; font-weight: 700; }
+.editor-import-dialog {
+  width: min(440px, calc(100% - 32px));
+}
+.editor-import-desc {
+  margin: 6px 0 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.editor-import-desc code {
+  color: var(--accent);
+}
+.editor-import-file-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.editor-import-filename {
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.editor-import-text {
+  width: 100%;
+  box-sizing: border-box;
+  background: #0b192e;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--fg);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  padding: 8px;
+  resize: vertical;
+  min-height: 110px;
+  max-height: 240px;
+}
+.editor-import-text:focus {
+  outline: 1px solid var(--accent);
+  border-color: var(--accent);
+}
+.editor-import-error {
+  margin-top: 8px;
+  color: #ffc1b9;
+  background: #3b141188;
+  border: 1px solid #ffc1b944;
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 12px;
+}
 @media (max-width: 620px) {
   .layout-editor {
     top: max(8px, env(safe-area-inset-top));
