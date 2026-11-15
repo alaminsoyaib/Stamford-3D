@@ -6,6 +6,8 @@ Record completed changes here, with verification when it helps a future handoff.
 
 ### Added
 
+- Modeled the measured tiled platform and its planters on the inside right of the campus gate. The platform appears on the minimap and can be moved or stored in the layout editor.
+
 - Enabled campus drone mode by default upon entering the campus, starting at walking height (1.7 m) with active rotor audio, while preserving `F` key and pause action toggling between drone flight and walking.
 - Added mouse altitude controls in drone mode: Left-click ascends and Right-click descends (just like the Up and Down arrow keys), with context-menu prevention and automatic altitude clamping between 1.7 m and 80 m.
 - Added `M` shortcut and HUD action button to toggle drone rotor audio mute/unmute with smooth gain transitions and screen announcements.
@@ -56,6 +58,8 @@ Record completed changes here, with verification when it helps a future handoff.
 - Replaced building stretch transforms with metre-based footprints and whole-floor resizing. The building factory preserves opening dimensions, refits façade details, and rebuilds colliders.
 
 ### Verification
+
+- Checked the measured platform in the stock layout and a saved layout with a rotated gate. Verified walking collision, gate passage, minimap, Facilities deck storage, undo, JSON export, and reload in Chromium. The Vite build and nine unit tests passed.
 
 - Verified the recorded rotor loop, forward and boosted playback rates, reverse and altitude cues, stereo panning, pause fade, touch ascent, and the synthesized fallback in Chromium. Both pages built with Vite.
 
