@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import { maxBuildingFloors, maxBuildingSpan } from './buildingFactory.js';
-import { limitScale, rounded } from './campusLayout.js';
+import { limitScale, rounded, validateCampusLayout } from './campusLayout.js';
 import { fitsLand, insideLand, landExtent } from './campusBoundary.js';
 import { createDeckDrag } from './campusDeckDrag.js';
 import { createDeckPreviews } from './campusDeckPreviews.js';
@@ -18,7 +18,7 @@ const placeTips = {
   door: 'Click or drop near the edge of a building to attach a door to that wall.'
 };
 
-export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChange) {
+export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChange, onImportLayout) {
   const { renderer, scene } = runtime;
   const canvas = renderer.domElement;
   const panel = document.getElementById('layout-editor');
@@ -34,6 +34,15 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
   const grid = document.getElementById('editor-grid');
   const confirm = document.getElementById('editor-confirm');
   const confirmDescription = document.getElementById('editor-confirm-description');
+  const importDialog = document.getElementById('editor-import-dialog');
+  const importButton = document.getElementById('editor-import-json');
+  const importFile = document.getElementById('editor-import-file');
+  const importBrowse = document.getElementById('editor-import-browse');
+  const importFilename = document.getElementById('editor-import-filename');
+  const importText = document.getElementById('editor-import-text');
+  const importFeedback = document.getElementById('editor-import-feedback');
+  const importApply = document.getElementById('editor-import-apply');
+  const importCancel = document.getElementById('editor-import-cancel');
   const picker = document.getElementById('editor-object');
   const fields = [...panel.querySelectorAll('[data-transform]')];
   const sizeLabels = [...panel.querySelectorAll('[data-size-label]')];
@@ -695,6 +704,11 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
       select(null);
       document.body.dataset.briefing = 'compact';
       document.querySelector('[data-action="KeyE"]').focus({ preventScroll: true });
+      if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('editor')) {
+        const cleanUrl = new URL(window.location.href);
+        cleanUrl.searchParams.delete('editor');
+        window.history.replaceState(null, '', cleanUrl.pathname + (cleanUrl.search ? cleanUrl.search : ''));
+      }
     }
     onToggle(active);
   }
@@ -1051,6 +1065,112 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
       message('Clipboard unavailable. Use Export JSON to save the map.');
     }
   });
+
+  function showImportError(msg) {
+    if (!importFeedback) return;
+    importFeedback.textContent = msg;
+    importFeedback.hidden = false;
+  }
+
+  function clearImportError() {
+    if (!importFeedback) return;
+    importFeedback.textContent = '';
+    importFeedback.hidden = true;
+  }
+
+  function openImportDialog() {
+    clearImportError();
+    if (importFilename) importFilename.textContent = 'No file selected';
+    if (importText) importText.value = '';
+    if (importFile) importFile.value = '';
+    if (importDialog) {
+      importDialog.showModal();
+      importText?.focus();
+    }
+  }
+
+  function closeImportDialog() {
+    if (importDialog?.open) importDialog.close();
+    canvas.focus({ preventScroll: true });
+  }
+
+  function handleFileSelected(file) {
+    if (!file) return;
+    if (importFilename) importFilename.textContent = file.name;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (importText) {
+        importText.value = String(reader.result ?? '');
+        clearImportError();
+        importText.focus();
+      }
+    };
+    reader.onerror = () => {
+      showImportError('Failed to read the selected file.');
+    };
+    reader.readAsText(file);
+  }
+
+  function applyImport() {
+    const raw = importText?.value.trim() ?? '';
+    if (!raw) {
+      showImportError('Please choose a JSON file or paste JSON code.');
+      return;
+    }
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (e) {
+      showImportError(`Invalid JSON format: ${e.message}`);
+      return;
+    }
+    const check = validateCampusLayout(parsed);
+    if (!check.valid) {
+      showImportError(check.error || 'Invalid campus layout schema.');
+      return;
+    }
+
+    try {
+      const doImport = onImportLayout ?? kit.saveLayout;
+      if (typeof doImport === 'function') {
+        doImport(parsed);
+      }
+      closeImportDialog();
+      const url = new URL(window.location.href);
+      url.searchParams.set('editor', '1');
+      window.location.href = url.toString();
+    } catch (err) {
+      showImportError(`Failed to save layout: ${err.message}`);
+    }
+  }
+
+  if (importButton && importDialog) {
+    importButton.addEventListener('click', openImportDialog);
+    importBrowse?.addEventListener('click', () => importFile?.click());
+    importFile?.addEventListener('change', () => {
+      if (importFile.files?.[0]) handleFileSelected(importFile.files[0]);
+    });
+    importText?.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+    });
+    importText?.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const file = e.dataTransfer?.files?.[0];
+      if (file) handleFileSelected(file);
+    });
+    importText?.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        applyImport();
+      }
+    });
+    importApply?.addEventListener('click', applyImport);
+    importCancel?.addEventListener('click', closeImportDialog);
+    importDialog.addEventListener('cancel', () => {
+      canvas.focus({ preventScroll: true });
+    });
+  }
   picker.addEventListener('change', () => {
     setPlacement();
     select(entries.get(picker.value));
@@ -1082,7 +1202,7 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
   }
 
   addEventListener('keydown', (event) => {
-    if (!active || event.defaultPrevented || event.altKey || confirm.open) return;
+    if (!active || event.defaultPrevented || event.altKey || confirm.open || importDialog?.open) return;
     const editingText = event.target.matches?.('input, select, textarea') || event.target.isContentEditable;
     if (event.ctrlKey || event.metaKey) {
       if (editingText || !['KeyZ', 'KeyD'].includes(event.code)) return;

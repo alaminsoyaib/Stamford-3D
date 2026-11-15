@@ -168,7 +168,7 @@ function walkWithCollision(position, dx, dz, colliders, bounds) {
 export async function startCampus() {
   const response = await fetch(new URL('../CAMPUS_MAP.json', import.meta.url));
   if (!response.ok) throw new Error(`Campus map request failed (${response.status})`);
-  const { map, save } = readCampusLayout(await response.text());
+  const { map, save, saveLayout: persistLayout } = readCampusLayout(await response.text());
   const runtime = createRuntime({ fov: 63, far: 220, shadows: true, shiftStrafe: true, resumeLabel: 'Resume walk' });
   const { scene, camera } = runtime;
   const kit = createCampusKit(map);
@@ -336,7 +336,7 @@ export async function startCampus() {
     syncLand(editing);
     scenery.setEditing(editing);
     if (!editing) keepTourOnLand();
-  }, saveLayout);
+  }, saveLayout, persistLayout);
 
   const stopActions = Object.fromEntries(map.stops.map((stop) => [`Digit${stop.key}`, () => {
     document.body.dataset.briefing = 'compact';
@@ -345,6 +345,9 @@ export async function startCampus() {
   }]));
   runtime.ready({ ...weather.actions, ...stopActions, KeyP: dive, KeyO: dive, KeyE: editor.toggle });
   poolButton.disabled = !kit.layout.objects.has('pool');
+  if (new URLSearchParams(location.search).has('editor')) {
+    editor.toggle();
+  }
 
   runtime.loop((dt, time, view) => {
     editor.update();
