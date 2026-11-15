@@ -10,6 +10,12 @@ Start with the [README](README.md) for the launch command and demo controls, the
 - For input and HUD changes, check both pointer lock and the touch or drag fallback. Keep controls, visible labels, and the README in sync.
 - Keep repository notes in plain Markdown with relative links. Put lasting architectural decisions in Project Context and record completed behavior changes with their verification in the changelog. Keep implementation details anchored to the source files.
 
+## Workflow and verification rules
+
+- **Skip browser testing by default**: Never run automated headless browser, Playwright, or Puppeteer tests unless explicitly requested by the user in their prompt.
+- **Fast verification only**: Keep verification lightweight and fast (e.g. `node --check` syntax validation and quick unit tests under 1–2 seconds). Avoid writing heavy multi-step verification scripts or long-running background tasks.
+- **Always maintain documentation**: Always update [CHANGELOG.md](CHANGELOG.md) with completed changes, update [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) with architectural details, and keep [README.md](README.md) in sync.
+
 ## Three.js rules and guidelines
 
 - Always read the relevant `SKILL.md` inside `.agents/skills/` before writing Three.js code.
