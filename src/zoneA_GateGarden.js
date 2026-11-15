@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { addLocalCollider, sign } from './buildingFactory.js';
 import { buildGatePlatform } from './gatePlatform.js';
 import { buildGatePlantingBed } from './gatePlantingBed.js';
+import { createGateRoomModels } from './gateRooms.js';
 import { batchStaticMeshes, box, cylinder, groupAt } from './sceneKit.js';
 
 export function buildGateGarden(scene, kit) {
@@ -45,16 +46,9 @@ export function buildGateGarden(scene, kit) {
   buildGatePlatform(zone, kit, gate);
   buildGatePlantingBed(zone, kit, gate);
 
-  kit.building(zone, 'guard', 'guard', {
-    awning: true,
-    doors: [{ x: -1.35, title: 'Guard Room', width: 1.06, height: 1.94 }],
-    windows: [{ x: 0.83, width: 1.68, height: 1.12 }]
-  });
-  kit.building(zone, 'guardian', 'guard', {
-    awning: true,
-    doors: [{ x: 1.24, title: 'Guardian Room', width: 1.05, height: 1.94, signWidth: 1.74 }],
-    windows: [{ x: -0.84, width: 1.73, height: 1.12 }]
-  });
+  const rooms = createGateRoomModels(kit);
+  kit.building(zone, 'guard', 'guard', rooms.guard);
+  kit.building(zone, 'guardian', 'guard', rooms.guardian);
   for (const pz of [19.4, 23.8, 29.8]) kit.planter(zone, -10.28, pz, 0.37, 71 + pz);
 
   const garden = map.garden;

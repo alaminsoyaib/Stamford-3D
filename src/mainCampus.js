@@ -204,7 +204,7 @@ export async function startCampus() {
   const kit = createCampusKit(map);
   const site = buildCampusSite(scene, kit);
   buildGateGarden(scene, kit);
-  buildCSEAdmission(scene, kit);
+  await buildCSEAdmission(scene, kit);
   if (new URLSearchParams(location.search).get('arrival') !== 'pool') {
     const hero = document.getElementById('campus-hero');
     try {

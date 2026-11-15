@@ -1,5 +1,7 @@
-import * as THREE from 'three';
 import { floor, sign, standard } from './buildingFactory.js';
+import { buildCampusBus } from './campusBus.js';
+import { createCseExterior, cseStoryHeight } from './cseExterior.js';
+import { createCseMonument } from './cseMonument.js';
 import { batchStaticMeshes, box, canvasTexture, groupAt, part, unitPlane } from './sceneKit.js';
 
 const muralMaterials = new Map();
@@ -46,24 +48,14 @@ function mural(parent, position, width, palette, title) {
   mesh.castShadow = false;
 }
 
-export function buildCSEAdmission(scene, kit) {
+export async function buildCSEAdmission(scene, kit) {
   const { map, materials: m } = kit;
   const zone = groupAt(scene, 'Zone B · CSE and Admission', [0, 0, 0]);
+  const [cseExterior, cseMonument] = await Promise.all([createCseExterior(kit), createCseMonument(kit)]);
   kit.building(zone, 'cse', 'cse', {
-    title: 'STAMFORD UNIVERSITY BANGLADESH', subtitle: 'DEPARTMENT OF COMPUTER SCIENCE & ENGINEERING',
-    signWidth: 21.7,
-    doors: [
-      { x: -6.9, title: 'Prayer Room', width: 1.47 },
-      { x: 0.6, title: 'Main CSE Building', width: 2.49, signWidth: 3.21, glass: true }
-    ],
-    windows: [{ x: 5.75, width: 3.03 }, { x: -3.1, width: 2.73 }],
-    details({ root, facade, placeX }) {
-      const nameplate = groupAt(root, 'Garden elevation plaque', [placeX(4.9), 0.52, facade + 0.37]);
-      box(nameplate, m.blue, [5.45, 0.16, 0.99], [0, -0.23, -0.13]).rotation.x = 0.26;
-      const plaque = sign(nameplate, { title: 'STAMFORD', subtitle: 'UNIVERSITY BANGLADESH',
-        position: [0, -0.096, -0.09], width: 5.33, height: 0.8, seal: true, serif: true });
-      plaque.rotation.x = -1.1;
-    }
+    story: cseStoryHeight,
+    ...cseExterior,
+    details: cseMonument
   });
 
   kit.building(zone, 'official', 'official', {
@@ -92,8 +84,8 @@ export function buildCSEAdmission(scene, kit) {
       }
     }
   });
-  const busSpec = map.buildings.bus ??= { label: 'Varsity Bus', x: 21.6, z: 8.9, yaw: -47, width: 2.89, depth: 8.5, floors: 1 };
-  const bus = kit.layout.add('bus', kit.bus(zone, busSpec.x, busSpec.z, THREE.MathUtils.degToRad(busSpec.yaw)), busSpec);
+  const busSpec = map.buildings.bus ??= { label: 'Varsity Bus', x: 24.2, z: 9.3, yaw: 33, width: 2.89, depth: 8.5, floors: 1 };
+  const bus = kit.layout.add('bus', buildCampusBus(zone, busSpec, kit.colliders), busSpec);
   kit.refreshColliders(bus);
   const parkingSpec = (map.elements ??= {})['bus-parking'] ??= { x: busSpec.x, z: busSpec.z, yaw: busSpec.yaw };
   const parking = groupAt(zone, 'Varsity bus parking markings', [parkingSpec.x, 0, parkingSpec.z]);
