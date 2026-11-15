@@ -513,7 +513,7 @@ export function createCampusKit(map) {
     const rng = seededRandom(seed);
     const root = groupAt(parent, `${type[0].toUpperCase()}${type.slice(1)} tree`, [x, 0, z], rng() * Math.PI * 2);
     root.scale.setScalar(scale);
-    add(id, root, undefined, { label: map.elements?.[id]?.label ?? root.name });
+    if (id !== null) add(id, root, undefined, { label: map.elements?.[id]?.label ?? root.name });
     if (type === 'palm') {
       const height = 6.15;
       for (let index = 0; index < 9; index++) {
@@ -551,7 +551,7 @@ export function createCampusKit(map) {
       part(root, crownGeometry, foliage[1], [0.12, height, 0], [2.15, 1.21, 1.86]);
     }
     const trunkWidth = type === 'banyan' ? 1.65 : 0.48;
-    addLocalCollider(colliders, root, 0, 0, trunkWidth, trunkWidth);
+    if (id !== null) addLocalCollider(colliders, root, 0, 0, trunkWidth, trunkWidth);
     return root;
   }
 
