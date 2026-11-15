@@ -74,8 +74,8 @@
     },
     "guardian": {
       "label": "Guardian Room",
-      "x": -29.3,
-      "z": 17.25,
+      "x": -13.3,
+      "z": 22.6,
       "width": 4.6,
       "depth": 4.5,
       "yaw": 90,
@@ -101,11 +101,11 @@
     },
     "bus": {
       "label": "Varsity Bus",
-      "x": 0,
-      "z": 0,
+      "x": 24.2,
+      "z": 9.3,
       "width": 2.89,
       "depth": 8.5,
-      "yaw": 0,
+      "yaw": 33,
       "floors": 1
     },
     "garage": {
@@ -381,11 +381,11 @@
   "photoNotes": [
     {
       "frames": "1–9, 17, 57–59",
-      "details": "Brick piers and blue entrance signage, white guard and guardian rooms with blue eaves, curved black-and-white garden curb, palms and flower beds."
+      "details": "Brick piers and blue entrance signage, adjoining white guard and guardian rooms with corrugated metal roofing, curved black-and-white garden curb, palms and flower beds. IMG_3142.JPG measures 10 ft 3 in at the blue front eave."
     },
     {
       "frames": "7, 10–20, 42–43, 53–56",
-      "details": "Cream grid over dark red CSE lattice panels, blue roof fascia, salmon official wing with the Admission Office and first Academic gate, white and blue bus near the garden fork."
+      "details": "Cream grid over dark red CSE lattice panels, blue roof fascia, salmon official wing with the Admission Office and first Academic gate, and the campus bus near the garden fork. IMG_3146.JPG shows the blue bus and measures 8 ft 11 in at the roofline."
     },
     {
       "frames": "19–32",

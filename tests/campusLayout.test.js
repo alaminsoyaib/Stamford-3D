@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateCampusLayout, layoutKey } from '../src/campusLayout.js';
+import { readFileSync } from 'node:fs';
+import { validateCampusLayout, layoutKey, readCampusLayout } from '../src/campusLayout.js';
 
 test('validateCampusLayout rejects non-object inputs', () => {
   assert.equal(validateCampusLayout(null).valid, false);
@@ -41,4 +42,32 @@ test('layoutKey generates consistent hash key', () => {
   const key2 = layoutKey('test-source');
   assert.equal(key1, key2);
   assert.match(key1, /^stamford-layout-v1-\d+$/);
+});
+
+test('the room and bus update carries forward old saves and moves only stock poses', () => {
+  const source = readFileSync(new URL('../CAMPUS_MAP.json', import.meta.url), 'utf8').replaceAll('\r\n', '\n');
+  const saved = JSON.parse(source);
+  Object.assign(saved.buildings.guardian, { x: -29.3, z: 17.25 });
+  Object.assign(saved.buildings.bus, { x: 0, z: 0, yaw: 0 });
+  saved.elements = { 'bus-parking': { x: 0, z: 0, yaw: 0 } };
+  saved.deck = ['guardian'];
+  globalThis.window = {
+    sessionStorage: { getItem: () => null },
+    localStorage: { getItem: key => key === 'stamford-layout-v1-58594549' ? JSON.stringify(saved) : null }
+  };
+  try {
+    for (const lineEnding of ['\n', '\r\n']) {
+      const { map } = readCampusLayout(source.replaceAll('\n', lineEnding));
+      assert.equal(map.buildings.guardian.z, 22.6);
+      assert.deepEqual(map.elements['bus-parking'], { x: 24.2, z: 9.3, yaw: 33 });
+      assert.deepEqual(map.deck, ['guardian']);
+    }
+    saved.buildings.guard.x += 1;
+    saved.buildings.bus.z += 1;
+    const { map } = readCampusLayout(source);
+    assert.deepEqual(map.buildings.guardian, saved.buildings.guardian);
+    assert.deepEqual(map.buildings.bus, saved.buildings.bus);
+  } finally {
+    delete globalThis.window;
+  }
 });

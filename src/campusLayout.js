@@ -31,20 +31,46 @@ export function validateCampusLayout(data) {
   return { valid: true, map: data };
 }
 
+function updateStockRoomAndBusPoses(saved, stock) {
+  const { guard, guardian, bus } = saved.buildings ?? {};
+  const applyPose = (entry, { x, z, yaw }) => Object.assign(entry, { x, z, yaw });
+  if (guard?.x === -13.3 && guard.z === 27.2 && guard.yaw === 90 && guard.width === 4.6 && guard.depth === 4.5
+      && guardian?.x === -29.3 && guardian.z === 17.25 && guardian.yaw === 90
+      && guardian.width === 4.6 && guardian.depth === 4.5) {
+    applyPose(guardian, stock.buildings.guardian);
+  }
+  if (bus?.x === 0 && bus.z === 0 && bus.yaw === 0) {
+    applyPose(bus, stock.buildings.bus);
+    const parking = saved.elements?.['bus-parking'];
+    if (parking?.x === 0 && parking.z === 0 && parking.yaw === 0) applyPose(parking, stock.buildings.bus);
+  }
+}
+
 export function readCampusLayout(source) {
-  // A changed source file starts a new saved layout.
   const key = layoutKey(source);
-  let map = JSON.parse(source);
+  const stock = JSON.parse(source);
+  let map = stock;
   if (typeof window !== 'undefined') {
-    for (const storage of ['sessionStorage', 'localStorage']) {
-      try {
-        const saved = window[storage].getItem(key);
-        if (saved) {
-          map = JSON.parse(saved);
-          break;
+    const keys = [key];
+    // Carry forward saves from the stock map before the room and bus placements changed.
+    // Include the hashes for both checkout line endings.
+    if (key === 'stamford-layout-v1-2488626924') {
+      keys.push('stamford-layout-v1-58594549', 'stamford-layout-v1-2509250825');
+    } else if (key === 'stamford-layout-v1-1431998899') {
+      keys.push('stamford-layout-v1-2509250825', 'stamford-layout-v1-58594549');
+    }
+    findSave: for (const candidate of keys) {
+      for (const storage of ['sessionStorage', 'localStorage']) {
+        try {
+          const saved = window[storage].getItem(candidate);
+          if (!saved) continue;
+          const savedMap = JSON.parse(saved);
+          if (candidate !== key) updateStockRoomAndBusPoses(savedMap, stock);
+          map = savedMap;
+          break findSave;
+        } catch {
+          // The source map stays available when storage is blocked.
         }
-      } catch {
-        // The source map stays available when storage is blocked.
       }
     }
   }

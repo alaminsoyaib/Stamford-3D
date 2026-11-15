@@ -11,6 +11,7 @@ const signMaterials = new Map();
 const facadeClearance = 0.15;
 export const maxBuildingFloors = 24;
 export const maxBuildingSpan = 150;
+export const academicStoryHeight = 3.15;
 const addedDoorWidth = 1.42;
 const addedDoorSpan = addedDoorWidth + 0.34;
 
@@ -284,16 +285,15 @@ export function createCampusKit(map) {
     }),
     tile: standard(p.poolBlue, { map: patternTexture('tile'), roughness: 0.63 }),
     glass: makeGlass('#e5eeef', '#ffd193'),
-    shadeGlass: makeGlass('#a8bec8', '#d79c60'),
-    unlitGlass: standard('#89aab9', { map: windowMap, roughness: 0.34, metalness: 0.22 })
+    shadeGlass: makeGlass('#a8bec8', '#d79c60')
   };
   const flowers = ['#ffc872', '#e77d86', '#f2a38a', '#eae3bf'].map((color) => standard(color));
   const warmCenter = standard('#c98c36');
   const themes = {
-    guard: { wall: materials.white, trim: materials.blue, story: 2.9 },
-    cse: { wall: materials.concrete, trim: materials.white, story: 3.06, recess: 1.28, lattice: true },
+    guard: { wall: materials.white, trim: materials.blue, story: 2.8 },
+    cse: { wall: materials.concrete, trim: materials.white, story: 3.06 },
     official: { wall: materials.official, trim: materials.concrete, story: 3.3, recess: 1.14 },
-    academic: { wall: materials.academic, trim: materials.white, story: 3.15, recess: 1.02 },
+    academic: { wall: materials.academic, trim: materials.white, story: academicStoryHeight, recess: 1.02 },
     civil: { wall: materials.civil, trim: materials.white, story: 3.25, recess: 0.83, bands: true },
     utility: { wall: materials.library, trim: materials.steel, story: 3.13 },
     garage: { wall: materials.civil, trim: materials.steel, story: 3.03 },
@@ -341,7 +341,9 @@ export function createCampusKit(map) {
   function building(parent, id, style, options = {}) {
     buildingModels.set(id, { style, options });
     const spec = map.buildings[id];
-    const { wall, trim, story, recess = 0, lattice = false, bands = false } = themes[style];
+    const { wall: defaultWall, trim, story: defaultStory, recess = 0, bands = false } = themes[style];
+    const wall = options.wall ?? defaultWall;
+    const story = options.story ?? defaultStory;
     const root = groupAt(parent, spec.label, [spec.x, 0, spec.z], radians(spec.yaw));
     const doors = options.doors ?? [];
     const windows = options.windows ?? [];
@@ -430,12 +432,19 @@ export function createCampusKit(map) {
           layout.objects.set(fixture.doorId, doorEntry);
         }
       }
-      box(root, wall, [width, story, depth - recess], [0, story / 2, -recess / 2]);
-      box(root, materials.black, [width + 0.025, 0.28, depth - recess + 0.04], [0, 0.14, -recess / 2]);
+      if (options.groundExterior) options.groundExterior({ root, width, depth, story, facade });
+      else {
+        box(root, wall, [width, story, depth - recess], [0, story / 2, -recess / 2]);
+        box(root, materials.black, [width + 0.025, 0.28, depth - recess + 0.04], [0, 0.14, -recess / 2]);
+      }
       addLocalCollider(colliders, root, 0, -recess / 2, width, depth - recess);
       if (floors > 1) box(root, wall, [width, height - story, depth], [0, (height + story) / 2, 0]);
-      box(root, trim, [width + 0.42, 0.22, depth + 0.4], [0, height + 0.08, 0]);
-      box(root, style === 'cse' ? materials.blue : wall, [width + 0.18, 0.37, depth + 0.18], [0, height + 0.35, 0]);
+      if (options.exterior) options.exterior({ root, width, depth, floors, story, height, facade, recess });
+      else if (options.roof) options.roof({ root, width, depth, story, height, facade });
+      else {
+        box(root, trim, [width + 0.42, 0.22, depth + 0.4], [0, height + 0.08, 0]);
+        box(root, wall, [width + 0.18, 0.37, depth + 0.18], [0, height + 0.35, 0]);
+      }
       if (recess) {
         const columns = Math.ceil(width / 4);
         for (let i = 0; i <= columns; i++) {
@@ -464,40 +473,33 @@ export function createCampusKit(map) {
       if (options.title) {
         const panel = sign(root, {
           title: options.title, subtitle: options.subtitle, width: options.signWidth || Math.min(originalWidth - 0.3, 6.3),
-          height: style === 'cse' ? 1.36 : 0.67, position: [0, height + (style === 'cse' ? 0.48 : -0.19), facade + 0.2],
-          background: style === 'cafe' ? '#9e4136' : '#18365e', seal: style === 'cse', serif: style === 'cse'
+          height: 0.67, position: [0, height - 0.19, facade + 0.2],
+          background: style === 'cafe' ? '#9e4136' : '#18365e'
         });
         panel.scale.x = Math.min(panel.scale.x, width - 0.1);
       }
-      if (style === 'cse') box(root, materials.blue, [width + 0.33, 1.42, 0.31], [0, height + 0.49, facade + 0.018]);
-
-      if (floors > 1) {
+      if (!options.exterior && floors > 1) {
         for (const [sideWidth, offset, angle] of [
           [width, [0, 0, facade], 0], [depth, [width / 2, 0, 0], Math.PI / 2],
           [width, [0, 0, -facade], Math.PI], [depth, [-width / 2, 0, 0], -Math.PI / 2]
         ]) {
           const side = groupAt(root, 'Exterior elevation', offset, angle);
-          const paneWidth = lattice ? 0.73 : (bands ? 2.48 : 2.16);
+          const paneWidth = bands ? 2.48 : 2.16;
           const bays = Math.max(1, Math.min(Math.round(sideWidth / (bands ? 3.3 : 3.05)),
             Math.floor((sideWidth - 0.4) / (paneWidth + 0.36))));
           const pitch = (sideWidth - 0.4) / bays;
           for (let level = 1; level < floors; level++) {
             const y = story * (level + 0.5);
-            box(side, trim, [sideWidth, lattice ? 0.31 : 0.15, 0.22], [0, level * story + 0.02, 0.05]);
+            box(side, trim, [sideWidth, 0.15, 0.22], [0, level * story + 0.02, 0.05]);
             for (let col = 0; col < bays; col++) {
               const px = pitch * (col - (bays - 1) / 2);
-              if (lattice) {
-                box(side, materials.lattice, [pitch - 0.16, story - 0.28, 0.075], [px, y, 0.025]);
-                box(side, trim, [0.23, story + 0.03, 0.23], [px - pitch / 2, y, 0.08]);
-              }
               if (bands && col === Math.floor(bays / 2)) {
                 box(side, materials.lattice, [pitch * 0.65, story - 0.15, 0.085], [px, y, 0.045]);
               }
-              windowAt(side, px, y + 0.1, 0.09, paneWidth, lattice ? 0.72 : 1.25, trim,
-                (col + level) % 3 === 0 ? materials.shadeGlass : materials.glass, !lattice);
+              windowAt(side, px, y + 0.1, 0.09, paneWidth, 1.25, trim,
+                (col + level) % 3 === 0 ? materials.shadeGlass : materials.glass);
             }
           }
-          if (lattice) box(side, trim, [0.22, height - story, 0.22], [(sideWidth - 0.4) / 2, (height + story) / 2, 0.08]);
         }
       }
       if (options.details) {
@@ -609,43 +611,6 @@ export function createCampusKit(map) {
       box(root, materials.wood, [1.83, 0.102, 0.07], [0, 0.6 + index * 0.13, -0.218]);
     }
     addLocalCollider(colliders, root, 0, 0, 1.82, 0.48);
-  }
-
-  function bus(parent, x, z, yaw) {
-    const root = groupAt(parent, 'Stamford varsity bus', [x, 0, z], yaw);
-    const ivory = materials.white;
-    const rubber = standard('#24292c', { roughness: 0.97 });
-    const rim = standard('#a8b2b7', { metalness: 0.7, roughness: 0.36 });
-    const amber = standard('#d89443');
-    const widths = 2.75;
-    const length = 8.35;
-    box(root, ivory, [widths, 2.64, length], [0, 1.91, 0]);
-    box(root, ivory, [2.62, 0.13, 8.06], [0, 3.28, 0]);
-    box(root, materials.blue, [2.79, 0.66, 8.39], [0, 1.01, 0]);
-    box(root, amber, [2.8, 0.079, 8.405], [0, 1.38, 0]);
-    box(root, materials.black, [2.68, 0.22, 8.47], [0, 0.58, 0]);
-    const windshield = groupAt(root, 'Driver windshield', [0, 0, length / 2]);
-    windowAt(windshield, 0, 2.28, 0.013, 2.39, 1.06, materials.black, materials.unlitGlass);
-    for (const side of [-1, 1]) {
-      const elevation = groupAt(root, 'Bus passenger side', [side * widths / 2, 0, 0], side * Math.PI / 2);
-      for (let index = 0; index < 6; index++) {
-        windowAt(elevation, (index - 2.5) * 1.25, 2.43, 0.01, 1.06, 0.82, materials.black, materials.unlitGlass, false);
-      }
-      sign(elevation, { title: 'STAMFORD UNIVERSITY', subtitle: 'VARSITY TRANSPORT', position: [0, 1.03, 0.047],
-        width: 5.6, height: 0.46, seal: true });
-      for (const wheelZ of [-2.53, 2.63]) {
-        cylinder(root, rubber, 0.52, 0.39, [side * 1.19, 0.54, wheelZ]).rotation.z = Math.PI / 2;
-        cylinder(root, rim, 0.27, 0.047, [side * 1.4, 0.54, wheelZ]).rotation.z = Math.PI / 2;
-      }
-      box(root, ivory, [0.43, 0.17, 0.21], [side * 1.43, 2.2, 4.12]);
-      box(root, materials.black, [0.17, 0.39, 0.18], [side * 1.64, 2.18, 4.1]);
-      box(root, materials.white, [0.43, 0.2, 0.07], [side * 0.96, 1.17, 4.22]);
-      box(root, amber, [0.17, 0.12, 0.075], [side * 1.14, 1.17, 4.23]);
-    }
-    box(root, materials.steel, [0.9, 0.26, 0.09], [0, 0.96, 4.227]);
-    box(root, materials.concrete, [1.19, 0.18, 1.54], [0, 3.41, -0.81]);
-    addLocalCollider(colliders, root, 0, 0, 2.89, length + 0.15);
-    return root;
   }
 
   function buildAdded(parent) {
@@ -883,7 +848,7 @@ export function createCampusKit(map) {
   }
 
   return {
-    map, materials, colliders, foliage, windowMaterials, building, windowAt, tree, shrub, flowerBed, planter, bench, bus,
+    map, materials, colliders, foliage, windowMaterials, building, windowAt, tree, shrub, flowerBed, planter, bench,
     direction, prop, layout, parked, buildAdded, place, canDuplicate, duplicate, moveDoor, fitsDoor, mountDoor, rebuildDoors,
     takeOffMap, applyVisibility, canRestore, removeFromDeck,
     refreshColliders: (root) => updateCollidersForGroup(colliders, root)
