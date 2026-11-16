@@ -43,6 +43,7 @@ Record completed changes here, with verification when it helps a future handoff.
 
 ### Changed
 
+- Lowered the first CSE lattice row to align its upper band with the first-floor band on the Academic Building. Recreated the sloped tiled sign and founder's plaque from the courtyard photos, with the original lettering, crest, portrait, and inscription.
 - Rebuilt the adjoining guard and guardian rooms with corrugated metal roofing, a measured 10 ft 3 in blue eave, recessed glazing, and an open guard shelter. Rebuilt the blue varsity bus at its measured 8 ft 11 in roofline with sliding windows, wheel arches, a folding passenger door, and the photographed crest. Moved the stock bus beside CSE and carried forward existing saved layouts.
 - Rebuilt the CSE exterior with terracotta screens, white trim, the measured 60 ft 2 in roof edge, a roof sign mapped from the original photo, and a steel stair at the right-rear corner. Removed the front posters and replaced the ground-level doors and windows with a lattice row over a recessed base.
 - Increased deep sea swimming and climb speeds: horizontal swim speed increased to 8.5 m/s (15.7 m/s boosted with Shift, an 85% boost) and vertical climb speed increased to 11.0 m/s (20.3 m/s boosted).
@@ -90,6 +91,7 @@ Record completed changes here, with verification when it helps a future handoff.
 
 ### Verification
 
+- Compared the CSE and Academic Building first-floor bands in Chromium and checked the ground sign and plaque from the courtyard. Verified the monument's colliders, editor resizing and undo, saved-layout reload, and the campus landing preview. The Vite build and all 11 unit tests passed.
 - Compared close-up Chromium views with the room and bus photos, checked roof heights, collision bounds, editor copies, minimap footprints, and all four checkpoint views, and loaded both scenes from the static server. The Vite build and all 11 unit tests passed, including migration of existing saved layouts.
 - Checked the CSE front and rear views, recessed base, stair collision, minimap, checkpoint 2, and landing hero in Chromium. Verified floor-count changes, undo, JSON export, and saved layout reload. Both pages built with Vite and the unit suite passed.
 - Checked the entry planting bed from the marked viewpoint in a saved layout. Verified gate passage, collision, Facilities deck storage, undo, minimap updates, and JSON export and reload in Chromium. The build and nine unit tests passed.

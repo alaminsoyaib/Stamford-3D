@@ -108,9 +108,10 @@ function buildPlanting(root, materials) {
   }
 
   const rng = seededRandom(1011);
-  const hedgeCount = 180;
-  const leaves = new THREE.InstancedMesh(leafGeometry, materials.leaves, hedgeCount * 5 + 22);
-  const blossoms = new THREE.InstancedMesh(flowerGeometry, materials.blossoms, 40);
+  const hedgeCount = 300;
+  const broadLeafCount = 30;
+  const leaves = new THREE.InstancedMesh(leafGeometry, materials.leaves, hedgeCount * 5 + broadLeafCount);
+  const blossoms = new THREE.InstancedMesh(flowerGeometry, materials.blossoms, Math.ceil(hedgeCount / 6));
   const pose = new THREE.Object3D();
   const green = new THREE.Color();
   let blade = 0;
@@ -121,27 +122,29 @@ function buildPlanting(root, materials) {
     pose.scale.set(width, height, height * 0.75);
     pose.updateMatrix();
     leaves.setMatrixAt(blade, pose.matrix);
-    green.setHSL(yellow ? 0.169 + rng() * 0.026 : 0.22 + rng() * 0.07, 0.19 + rng() * 0.25, 0.25 + rng() * 0.17);
+    const hue = yellow ? 0.151 + rng() * 0.04 : 0.22 + rng() * 0.07;
+    const shade = yellow ? 0.38 + rng() * 0.16 : 0.24 + rng() * 0.23;
+    green.setHSL(hue, 0.24 + rng() * 0.29, shade, THREE.SRGBColorSpace);
     leaves.setColorAt(blade++, green);
   }
   for (let i = 0; i < hedgeCount; i++) {
     const x = left + (i + rng()) * bedWidth / hedgeCount;
     const yellow = x > plaqueX - 0.18 || x < left + 0.47;
-    const z = 0.95 + rng() * 0.4;
-    const height = yellow ? 0.14 + rng() * 0.12 : 0.18 + rng() * 0.21;
+    const z = (yellow ? 0.58 : 0.87) + rng() * (yellow ? 0.74 : 0.48);
+    const height = yellow ? 0.16 + rng() * 0.14 : 0.20 + rng() * 0.25;
     for (let shoot = 0; shoot < 5; shoot++) {
       addLeaf(x + (rng() - 0.5) * 0.16, 0.07, z, 0.032 + rng() * 0.029, height, rng() * 0.62, yellow);
     }
-    if (i % 4 === 0 && !yellow) {
+    if (i % 6 === 0 && !yellow) {
       pose.position.set(x, height + 0.055, z);
       pose.scale.set(0.026, 0.015, 0.023);
       pose.updateMatrix();
       blossoms.setMatrixAt(bloom++, pose.matrix);
     }
   }
-  for (let i = 0; i < 22; i++) {
-    const x = plaqueX + 0.52 + (rng() - 0.5) * 0.58;
-    addLeaf(x, 0.074 + rng() * 0.15, -0.54 + rng() * 0.38, 0.13 + rng() * 0.09, 0.68 + rng() * 1.03, rng() * 0.5, false);
+  for (let i = 0; i < broadLeafCount; i++) {
+    const x = plaqueX + 0.73 + (rng() - 0.5) * 0.37;
+    addLeaf(x, 0.074 + rng() * 0.15, -0.8 + rng() * 0.22, 0.12 + rng() * 0.09, 0.68 + rng() * 1.05, rng() * 0.45, false);
   }
   leaves.receiveShadow = true;
   blossoms.count = bloom;
