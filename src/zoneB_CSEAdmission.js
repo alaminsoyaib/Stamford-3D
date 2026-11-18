@@ -1,5 +1,6 @@
-import { floor, sign, standard } from './buildingFactory.js';
+import { addLocalCollider, floor, sign, standard } from './buildingFactory.js';
 import { buildCampusBus } from './campusBus.js';
+import { westWingBounds } from './campusFootprints.js';
 import { createCseExterior, cseStoryHeight } from './cseExterior.js';
 import { createCseMonument } from './cseMonument.js';
 import { batchStaticMeshes, box, canvasTexture, groupAt, part, unitPlane } from './sceneKit.js';
@@ -65,11 +66,26 @@ export async function buildCSEAdmission(scene, kit) {
       { x: 5.6, title: 'Academic Gate 01', width: 2.15, signWidth: 3.0, glass: true }
     ],
     windows: [{ x: -9.5, width: 2.1 }, { x: 0.13, width: 2.14 }, { x: 9.4, width: 2.3 }],
-    details({ root, facade, fixtureX }) {
+    details({ root, facade, fixtureX, spec, height }) {
       box(root, m.blue, [4.54, 0.21, 1.21], [fixtureX(-4.8), 2.89, facade + 0.34]).rotation.x = 0.08;
+      const wing = westWingBounds(spec);
+      if (!wing) return;
+      const block = groupAt(root, 'Official Building west wing', [wing.x, 0, wing.z]);
+      box(block, m.official, [wing.width, height, wing.depth], [0, height / 2, 0]);
+      box(block, m.concrete, [wing.width, 0.22, wing.depth], [0, height + 0.08, 0]);
+      box(block, m.official, [wing.width, 0.37, wing.depth], [0, height + 0.35, 0]);
+      for (let level = 0; level < spec.floors; level++) {
+        const story = height / spec.floors;
+        const bays = Math.max(1, Math.floor(wing.width / 3));
+        for (let bay = 0; bay < bays; bay++) {
+          const x = ((bay + 0.5) / bays - 0.5) * wing.width;
+          kit.windowAt(block, x, (level + 0.5) * story, wing.depth / 2 + 0.025, Math.min(2.16, wing.width * 0.6), 1.25, m.concrete);
+        }
+      }
+      addLocalCollider(kit.colliders, block, 0, 0, wing.width, wing.depth, true);
     }
   });
-  for (const px of [-7.7, -2.4]) kit.planter(zone, 9 + px, -0.87, 0.39, 44 + px);
+  if (!map.surveyTrees) for (const px of [-7.7, -2.4]) kit.planter(zone, 9 + px, -0.87, 0.39, 44 + px);
 
   kit.building(zone, 'garage', 'garage', {
     awning: true, title: 'CAMPUS PARKING', minWidth: 5.15,
@@ -92,7 +108,7 @@ export async function buildCSEAdmission(scene, kit) {
   kit.layout.add('bus-parking', parking, parkingSpec, { surface: true });
   floor(parking, standard('#b9b69c'), 0, 0, 4.1, 9.3, 0.012);
   for (const px of [-1.87, 1.87]) floor(parking, m.white, px, 0, 0.1, 9.13, 0.016);
-  for (const [x, z, s, type] of [
+  if (!map.surveyTrees) for (const [x, z, s, type] of [
     [17.8, 3.8, 0.85, 'palm'], [28.6, 17.0, 0.89, 'shade'], [29.25, 5.9, 1.15, 'shade'],
     [-33.9, 7.2, 1.15, 'shade'], [-29.1, 11.3, 0.85, 'palm'], [25.7, -1.8, 0.96, 'palm']
   ]) kit.tree(zone, x, z, s, type, 920 + Math.round(x * 43 + z * 139));
@@ -139,7 +155,7 @@ export async function buildCSEAdmission(scene, kit) {
     }
   });
   kit.direction(corridor, { x: 30.8, z: -41.7, title: 'CENTRAL GROUND ↖', subtitle: 'ACADEMIC BUILDING  •  POOL', width: 3.13 });
-  for (const [x, z, s, type] of [
+  if (!map.surveyTrees) for (const [x, z, s, type] of [
     [29.45, -8.0, 0.91, 'shade'], [29.5, -20.4, 0.72, 'palm'], [41.3, -40.5, 0.95, 'shade'], [47.9, -28.2, 1.03, 'shade']
   ]) kit.tree(corridor, x, z, s, type, 1130 + Math.round(x * 14 + z));
   for (const [x, z] of [[40.34, 3.4], [40.1, -8.65], [35.58, -34.5], [33.8, -35.8], [29.45, -23.3]]) {

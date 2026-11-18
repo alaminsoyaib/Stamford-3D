@@ -143,14 +143,14 @@ function isDescendantOf(parent, child) {
   return false;
 }
 
-export function addLocalCollider(colliders, group, x, z, width, depth) {
+export function addLocalCollider(colliders, group, x, z, width, depth, oriented = false) {
   group.updateWorldMatrix(true, false);
   const lower = new THREE.Vector3(x - width / 2, 0, z - depth / 2);
   const upper = new THREE.Vector3(x + width / 2, 0, z + depth / 2);
   const bounds = new THREE.Box3(lower, upper).applyMatrix4(group.matrixWorld);
   const record = {
     minX: bounds.min.x, maxX: bounds.max.x, minZ: bounds.min.z, maxZ: bounds.max.z,
-    group, local: { x, z, width, depth }
+    group, local: { x, z, width, depth }, oriented
   };
   colliders.push(record);
   return record;
@@ -437,7 +437,7 @@ export function createCampusKit(map) {
         box(root, wall, [width, story, depth - recess], [0, story / 2, -recess / 2]);
         box(root, materials.black, [width + 0.025, 0.28, depth - recess + 0.04], [0, 0.14, -recess / 2]);
       }
-      addLocalCollider(colliders, root, 0, -recess / 2, width, depth - recess);
+      addLocalCollider(colliders, root, 0, -recess / 2, width, depth - recess, Boolean(map.surveyTrees));
       if (floors > 1) box(root, wall, [width, height - story, depth], [0, (height + story) / 2, 0]);
       if (options.exterior) options.exterior({ root, width, depth, floors, story, height, facade, recess });
       else if (options.roof) options.roof({ root, width, depth, story, height, facade });
@@ -506,7 +506,7 @@ export function createCampusKit(map) {
         const placeX = (x) => THREE.MathUtils.clamp(x * width / originalWidth, -width / 2 + 0.15, width / 2 - 0.15);
         const fixtureX = (x) => frontDoors.find(({ anchor }) => anchor === x)?.x
           ?? groundFixtures.find(({ anchor }) => anchor === x)?.x ?? placeX(x);
-        options.details({ root, face, facade, width, placeX, fixtureX });
+        options.details({ root, face, facade, width, depth, height, spec, placeX, fixtureX });
       }
     }
   }

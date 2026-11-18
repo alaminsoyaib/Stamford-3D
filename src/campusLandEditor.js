@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { closestOnEdge, landArea, landCorners, landExtent, validLandOutline } from './campusBoundary.js';
 import { rounded } from './campusLayout.js';
 
-export function createLandEditor(scene, panel, map, { input, commit, message, onMode }) {
+export function createLandEditor(scene, panel, map, { input, commit, survey, message, onMode }) {
   const form = panel.querySelector('#editor-land');
   const toggle = panel.querySelector('#editor-land-toggle');
   const size = panel.querySelector('#editor-land-size');
@@ -203,6 +203,12 @@ export function createLandEditor(scene, panel, map, { input, commit, message, on
   }
 
   toggle.addEventListener('click', () => { if (points) end(); else begin(); });
+  form.querySelector('#editor-land-survey').addEventListener('click', () => {
+    points = survey();
+    corner = -1;
+    scale.value = '100';
+    refresh();
+  });
   form.querySelector('#editor-land-redraw').addEventListener('click', () => begin(true));
   form.querySelector('#editor-land-cancel').addEventListener('click', end);
   apply.addEventListener('click', save);

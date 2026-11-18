@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { addLocalCollider, createCampusKit, floor, standard } from './buildingFactory.js';
 import { createCampusEditor } from './campusEditor.js';
 import { createDroneAudio } from './campusDroneAudio.js';
-import { closestOnEdge, insideLand, landExtent, nearestLandEdge } from './campusBoundary.js';
+import { touchesCollider } from './campusFootprints.js';
+import { campusGatePose, closestOnEdge, insideLand, landExtent, nearestLandEdge, perimeterWalls } from './campusBoundary.js';
 import { renderCampusHero } from './campusHero.js';
 import { createPoolOpening, movePoolDependencies, readCampusLayout } from './campusLayout.js';
 import { batchStaticMeshes, box, canvasTexture, createSceneryBatches, groupAt, seededRandom } from './sceneKit.js';
@@ -101,6 +102,8 @@ function createLandSurface(scene, site, map, opening, materials, kit) {
   surround.position.y = -0.045;
   terrain.receiveShadow = surround.receiveShadow = true;
   const perimeter = groupAt(scene, 'Automatic boundary walls', [0, 0, 0]);
+  const approach = groupAt(scene, 'Main gate street approach', [0, 0, 0]);
+  const approachMesh = floor(approach, opening.terrain(materials.paving), 0, 5.9, map.gate.opening + 1, 14, -0.02);
   kit.perimeter = perimeter;
   scene.add(surround, terrain);
   let previousCornersJson;
@@ -109,19 +112,7 @@ function createLandSurface(scene, site, map, opening, materials, kit) {
   function syncPerimeter() {
     perimeter.traverse((object) => { if (object.isInstancedMesh) object.dispose(); });
     perimeter.clear();
-    const walls = map.boundary.walls ??= (map.boundary.points
-      ? map.boundary.points.map(([x, z], index) => {
-          const [nextX, nextZ] = map.boundary.points[(index + 1) % map.boundary.points.length];
-          return { id: `wall-${index + 1}`, a: [x, z], b: [nextX, nextZ] };
-        })
-      : [
-          { id: 'wall-north', a: [map.boundary.minX, map.boundary.minZ], b: [map.boundary.maxX, map.boundary.minZ] },
-          { id: 'wall-east', a: [map.boundary.maxX, map.boundary.minZ], b: [map.boundary.maxX, map.boundary.maxZ] },
-          { id: 'wall-street-east', a: [map.gate.x + map.gate.opening / 2 + 0.56, map.boundary.maxZ], b: [map.boundary.maxX, map.boundary.maxZ] },
-          { id: 'wall-street-west', a: [map.boundary.minX, map.boundary.maxZ], b: [map.gate.x - map.gate.opening / 2 - 0.56, map.boundary.maxZ] },
-          { id: 'wall-west', a: [map.boundary.minX, map.boundary.maxZ], b: [map.boundary.minX, map.boundary.minZ] }
-        ]);
-    if (!walls) return;
+    const walls = map.boundary.walls ??= perimeterWalls(map);
     for (const seg of walls) {
       const [x, z] = seg.a;
       const [nextX, nextZ] = seg.b;
@@ -144,6 +135,13 @@ function createLandSurface(scene, site, map, opening, materials, kit) {
     site.legacyGround.visible = !map.boundary.points;
     site.city.visible = !editing && !map.boundary.points;
     terrain.visible = surround.visible = Boolean(map.boundary.points);
+    approach.visible = terrain.visible && kit.layout.objects.has('entry-gate');
+    if (approach.visible) {
+      const gate = campusGatePose(map);
+      approach.position.set(gate.x, 0, gate.z);
+      approach.rotation.y = THREE.MathUtils.degToRad(gate.yaw ?? 0);
+      approachMesh.scale.x = (map.gate.opening + 1) * (gate.scale?.[0] ?? 1);
+    }
     const corners = map.boundary.points;
     const currentCornersJson = JSON.stringify(corners);
     const currentWallsJson = JSON.stringify(map.boundary.walls);
@@ -180,8 +178,7 @@ function blocked(x, z, colliders, bounds) {
   }
   const { minX, maxX, minZ, maxZ, streetZ } = landExtent(bounds);
   if (x < minX - 35 || x > maxX + 35 || z < minZ - 35 || z > (streetZ || maxZ) + 40) return true;
-  return colliders.some(({ minX, maxX, minZ, maxZ }) =>
-    x > minX - playerRadius && x < maxX + playerRadius && z > minZ - playerRadius && z < maxZ + playerRadius);
+  return colliders.some((obstacle) => touchesCollider(x, z, playerRadius, obstacle));
 }
 
 function walkWithCollision(position, dx, dz, colliders, bounds) {
@@ -438,9 +435,7 @@ export async function startCampus() {
     if (climb) {
       const nextY = THREE.MathUtils.clamp(pos.y + climb * droneClimbSpeed * speed * dt, minY, droneCeiling);
       if (climb > 0 || nextY >= eyeHeight || insidePool || !kit.colliders.some((obstacle) =>
-        pos.x > obstacle.minX - playerRadius && pos.x < obstacle.maxX + playerRadius
-        && pos.z > obstacle.minZ - playerRadius && pos.z < obstacle.maxZ + playerRadius
-        && nextY < obstacleTop(obstacle))) {
+        touchesCollider(pos.x, pos.z, playerRadius, obstacle) && nextY < obstacleTop(obstacle))) {
         pos.y = nextY;
       }
     }

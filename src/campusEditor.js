@@ -3,11 +3,12 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import { maxBuildingFloors, maxBuildingSpan } from './buildingFactory.js';
 import { limitScale, rounded, validateCampusLayout } from './campusLayout.js';
-import { closestOnEdge, fitsLand, insideLand, landExtent } from './campusBoundary.js';
+import { campusGatePose, closestOnEdge, fitsLand, insideLand, landExtent, perimeterWalls } from './campusBoundary.js';
 import { createDeckDrag } from './campusDeckDrag.js';
 import { createDeckPreviews } from './campusDeckPreviews.js';
 import { createLandEditor } from './campusLandEditor.js';
-import { stamfordLandOutline } from './campusLandPresets.js';
+import { fitStamfordSurvey, stamfordLandOutline } from './campusLandPresets.js';
+import { buildingOutline } from './campusFootprints.js';
 
 const modes = { KeyG: 'translate', KeyR: 'rotate', KeyS: 'scale' };
 const nudges = { ArrowLeft: ['x', -1], ArrowRight: ['x', 1], ArrowUp: ['z', -1], ArrowDown: ['z', 1] };
@@ -128,7 +129,7 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
   wallHighlight.renderOrder = 998;
   scene.add(wallHighlight);
   const land = createLandEditor(scene, panel, kit.map, {
-    input: () => Number(grid.value), commit: commitBoundary, message,
+    input: () => Number(grid.value), commit: commitBoundary, survey: surveyDraft, message,
     onMode(value) {
       if (value) {
         setPlacement();
@@ -398,27 +399,17 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
 
   function resetPerimeterWalls() {
     const previousWalls = kit.map.boundary.walls ? structuredClone(kit.map.boundary.walls) : null;
-    if (kit.map.boundary.points) {
-      const corners = kit.map.boundary.points;
-      kit.map.boundary.walls = corners.map(([x, z], i) => ({
-        id: `wall-${i + 1}`,
-        a: [x, z],
-        b: corners[(i + 1) % corners.length]
-      }));
-    } else {
-      delete kit.map.boundary.walls;
+    const walls = perimeterWalls(kit.map);
+    function apply(replacement) {
+      if (replacement) kit.map.boundary.walls = structuredClone(replacement);
+      else delete kit.map.boundary.walls;
+      kit.syncPerimeter?.();
     }
-    kit.syncPerimeter?.();
+    apply(walls);
     selectWall(null);
     record({
-      undo: () => {
-        if (previousWalls) kit.map.boundary.walls = structuredClone(previousWalls);
-        else delete kit.map.boundary.walls;
-        kit.syncPerimeter?.();
-      },
-      redo: () => {
-        resetPerimeterWalls();
-      }
+      undo: () => apply(previousWalls),
+      redo: () => apply(walls)
     });
     onLayoutChange();
     message('Perimeter walls reset to boundary outline.');
@@ -1303,9 +1294,8 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
   function clearToDeck(points) {
     if (gizmo.dragging || pointer?.captured || deckDrag.busy) return;
     const previous = kit.map.boundary;
-    const boundary = points && JSON.stringify(points) !== JSON.stringify(previous.points)
-      ? { ...previous, points: structuredClone(points) }
-      : previous;
+    const boundary = points ? { ...previous, points: structuredClone(points) } : previous;
+    if (points) boundary.walls = perimeterWalls({ ...kit.map, boundary });
     setPlacement();
     if (points) land.end();
     let removals;
@@ -1339,6 +1329,27 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
     message(points ? 'Empty Stamford campus loaded.' : `Stored ${removals.length} objects.`);
   }
 
+  function surveyDraft() {
+    const pool = entries.get('pool');
+    const local = new THREE.Vector3();
+    const buildings = [...entries.values()].filter((entry) => entry.building).map(({ root, spec }) =>
+      buildingOutline(spec).map(([x, z]) => {
+        root.localToWorld(local.set(x, 0, z));
+        return [local.x, local.z];
+      }));
+    function score(boundary) {
+      if (pool && !poolFits(boundary, pool.root.position.x, pool.root.position.z, pool.root)) return -1;
+      const contained = buildings.filter((footprint) => fitsLand(boundary, footprint)).length;
+      return contained === buildings.length ? Infinity : contained;
+    }
+    const points = fitStamfordSurvey(kit.map.boundary, campusGatePose(kit.map), score);
+    const contained = score({ points });
+    if (contained < 0) message('The survey outline crosses the pool. Move the pool or adjust the draft before applying.');
+    else if (Number.isFinite(contained)) message(`${buildings.length - contained} building footprints extend past the survey outline.`);
+    else message('Survey outline ready to apply.');
+    return points;
+  }
+
   function commitBoundary(boundary) {
     const pool = entries.get('pool');
     if (pool && !poolFits(boundary, pool.root.position.x, pool.root.position.z)) {
@@ -1347,13 +1358,7 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
     }
     const previous = kit.map.boundary;
     kit.map.boundary = boundary;
-    if (boundary.points) {
-      boundary.walls = boundary.points.map(([x, z], i) => ({
-        id: `wall-${i + 1}`,
-        a: [x, z],
-        b: boundary.points[(i + 1) % boundary.points.length]
-      }));
-    }
+    boundary.walls = perimeterWalls(kit.map);
     kit.syncPerimeter?.();
     record({
       undo() { kit.map.boundary = previous; kit.syncPerimeter?.(); resize(); },

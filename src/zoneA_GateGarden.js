@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { addLocalCollider, sign } from './buildingFactory.js';
+import { surveyTreeId } from './campusFootprints.js';
 import { buildGatePlatform } from './gatePlatform.js';
 import { buildGatePlantingBed } from './gatePlantingBed.js';
 import { createGateRoomModels } from './gateRooms.js';
@@ -54,39 +55,49 @@ export function buildGateGarden(scene, kit) {
   const garden = map.garden;
   const lawn = groupAt(zone, 'Front garden lawn and curb', [garden.x, 0, garden.z]);
   kit.layout.add('garden', lawn, garden, { surface: true });
-  const disk = new THREE.Mesh(new THREE.CircleGeometry(1, 72), m.grass);
+  const rim = garden.points ?? Array.from({ length: 64 }, (_, i) => {
+    const angle = i * Math.PI * 2 / 64;
+    return [Math.cos(angle) * garden.radiusX, Math.sin(angle) * garden.radiusZ];
+  });
+  const geometry = new THREE.ShapeGeometry(new THREE.Shape(rim.map(([x, z]) => new THREE.Vector2(x, -z))));
+  const positions = geometry.attributes.position;
+  for (let i = 0; i < positions.count; i++) {
+    geometry.attributes.uv.setXY(i, positions.getX(i) / 4, positions.getY(i) / 4);
+  }
+  const disk = new THREE.Mesh(geometry, m.grass);
   disk.userData.grade = true;
   disk.rotation.x = -Math.PI / 2;
   disk.position.y = 0.037;
-  disk.scale.set(garden.radiusX, garden.radiusZ, 1);
   disk.receiveShadow = true;
   lawn.add(disk);
   const curbHeight = 16 * 0.0254; // IMG_3141.JPG measures from paving to the top of the curb.
-  for (let index = 0; index < 64; index++) {
-    const angle = (index + 0.5) * Math.PI * 2 / 64;
-    const dx = -Math.sin(angle) * garden.radiusX;
-    const dz = Math.cos(angle) * garden.radiusZ;
-    const px = Math.cos(angle) * garden.radiusX;
-    const pz = Math.sin(angle) * garden.radiusZ;
+  for (const [index, [x, z]] of rim.entries()) {
+    const [nx, nz] = rim[(index + 1) % rim.length];
     const curb = box(lawn, index % 2 ? m.white : m.black,
-      [Math.hypot(dx, dz) * Math.PI / 32 + 0.025, curbHeight, 0.28], [px, curbHeight / 2, pz]);
-    curb.rotation.y = -Math.atan2(dz, dx);
+      [Math.hypot(nx - x, nz - z) + 0.028, curbHeight, 0.28], [(x + nx) / 2, curbHeight / 2, (z + nz) / 2]);
+    curb.rotation.y = -Math.atan2(nz - z, nx - x);
   }
-  kit.flowerBed(zone, 7.5, 16.7, 3.3, 400, 52);
-  kit.flowerBed(zone, 10.6, 21.1, 1.98, 525, 35);
-  kit.flowerBed(zone, 0.6, 18.4, 1.68, 536, 25);
-  for (const [px, pz, size, type] of [
-    [-8.3, 29.5, 1.03, 'palm'], [5.1, 26.7, 1.12, 'palm'],
-    [-2.4, 11.8, 0.91, 'palm'], [3.5, 13.5, 0.88, 'palm'], [11.75, 13.2, 1.05, 'palm'],
-    [15.1, 17.2, 0.77, 'shade'], [-19.2, 28.2, 1.27, 'shade'],
-    [14.5, 26.3, 1.13, 'palm'], [17.9, 26.1, 0.91, 'shade']
-  ]) kit.tree(zone, px, pz, size, type, Math.round(px * 113 + pz * 17));
-  for (const [px, pz] of [[-1, 15.3], [1.5, 21.5], [4.8, 22.3], [12.3, 20], [14.4, 14.4], [8.4, 11.1]]) {
-    kit.shrub(zone, px, pz, 0.84, px * 274 + pz * 63);
+  if (!garden.points) {
+    kit.flowerBed(zone, 7.5, 16.7, 3.3, 400, 52);
+    kit.flowerBed(zone, 10.6, 21.1, 1.98, 525, 35);
+    kit.flowerBed(zone, 0.6, 18.4, 1.68, 536, 25);
+    for (const [px, pz, size, type] of [
+      [-8.3, 29.5, 1.03, 'palm'], [5.1, 26.7, 1.12, 'palm'],
+      [-2.4, 11.8, 0.91, 'palm'], [3.5, 13.5, 0.88, 'palm'], [11.75, 13.2, 1.05, 'palm'],
+      [15.1, 17.2, 0.77, 'shade'], [-19.2, 28.2, 1.27, 'shade'],
+      [14.5, 26.3, 1.13, 'palm'], [17.9, 26.1, 0.91, 'shade']
+    ]) kit.tree(zone, px, pz, size, type, Math.round(px * 113 + pz * 17));
+    for (const [px, pz] of [[-1, 15.3], [1.5, 21.5], [4.8, 22.3], [12.3, 20], [14.4, 14.4], [8.4, 11.1]]) {
+      kit.shrub(zone, px, pz, 0.84, px * 274 + pz * 63);
+    }
+    kit.bench(zone, 3.0, 21.16, Math.PI);
+    kit.bench(zone, 8.7, 12.8);
+    kit.bench(zone, 13.8, 19.9, -Math.PI / 2);
   }
-  kit.bench(zone, 3.0, 21.16, Math.PI);
-  kit.bench(zone, 8.7, 12.8);
-  kit.bench(zone, 13.8, 19.9, -Math.PI / 2);
+  for (const [index, [tx, tz, radius, type = 'shade']] of (map.surveyTrees ?? []).entries()) {
+    const nominalRadius = type === 'banyan' ? 5.8 : 3.5;
+    kit.tree(zone, tx, tz, radius / nominalRadius, type, 2020 + index, surveyTreeId(index));
+  }
   kit.direction(zone, { x: 3.2, z: 25.7, title: 'FRONT GARDEN', subtitle: 'CSE AHEAD  •  ADMISSION ↗', width: 2.9 });
 
   const barrier = kit.prop(zone, 'barrier', 'Raised driveway barrier', 3, 27.8);

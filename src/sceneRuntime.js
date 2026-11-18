@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
 import { landExtent } from './campusBoundary.js';
+import { buildingOutline, surveyTreeId, worldOutline } from './campusFootprints.js';
 
 const moveCodes = new Set([
   'KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight',
@@ -350,6 +351,9 @@ export function makeMinimap(map) {
       transform: `rotate(${-yaw} ${x} ${z})`
     });
   }
+  function polygon(cssClass, points, pose) {
+    shape('polygon', cssClass, { points: worldOutline(points, pose).map((point) => point.join(',')).join(' ') });
+  }
   if (map.boundary.points) shape('polygon', 'outline', { points: map.boundary.points.map((point) => point.join(',')).join(' ') });
   else shape('path', 'outline', {
     d: `M${map.gate.x - 6},${maxZ} H${minX} V${minZ} H${maxX} V${maxZ} H${map.gate.x + 6}`
@@ -360,13 +364,22 @@ export function makeMinimap(map) {
   if (!removed.has('ground')) rect('green', map.ground);
   const garden = map.garden;
   if (!removed.has('garden')) {
-    shape('ellipse', 'green', {
+    if (garden.points) polygon('green', garden.points, garden);
+    else shape('ellipse', 'green', {
       cx: garden.x, cy: garden.z, rx: garden.radiusX * (garden.scale?.[0] ?? 1), ry: garden.radiusZ * (garden.scale?.[2] ?? 1),
       transform: `rotate(${-(garden.yaw ?? 0)} ${garden.x} ${garden.z})`
     });
   }
   for (const [id, building] of Object.entries(map.buildings)) {
-    if (!removed.has(id)) rect('footprint', building);
+    if (removed.has(id)) continue;
+    if (building.westWing) polygon('footprint', buildingOutline(building), building);
+    else rect('footprint', building);
+  }
+  for (const [index, [x, z, radius]] of (map.surveyTrees ?? []).entries()) {
+    const id = surveyTreeId(index);
+    if (removed.has(id)) continue;
+    const pose = map.elements?.[id];
+    shape('circle', 'green', { cx: pose?.x ?? x, cy: pose?.z ?? z, r: radius * (pose?.scale?.[0] ?? 1) });
   }
   if (!removed.has('pool')) rect('water', map.pool);
   const gatePlatform = map.elements?.['gate-platform'];

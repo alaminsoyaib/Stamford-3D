@@ -39,6 +39,49 @@ export function nearestLandEdge(points, x, z) {
   return nearest;
 }
 
+export function campusGatePose(map) {
+  return { ...map.gate, ...map.elements?.['entry-gate'] };
+}
+
+export function perimeterWalls(map) {
+  const { points, minX, maxX, minZ, maxZ } = map.boundary;
+  const gate = campusGatePose(map);
+  const halfOpening = (gate.opening / 2 + 0.56) * (gate.scale?.[0] ?? 1);
+  if (!points) {
+    return [
+      { id: 'wall-north', a: [minX, minZ], b: [maxX, minZ] },
+      { id: 'wall-east', a: [maxX, minZ], b: [maxX, maxZ] },
+      { id: 'wall-street-east', a: [gate.x + halfOpening, maxZ], b: [maxX, maxZ] },
+      { id: 'wall-street-west', a: [minX, maxZ], b: [gate.x - halfOpening, maxZ] },
+      { id: 'wall-west', a: [minX, maxZ], b: [minX, minZ] }
+    ];
+  }
+
+  const walls = points.map((a, index) => ({ id: `wall-${index + 1}`, a, b: points[(index + 1) % points.length] }));
+  const yaw = (gate.yaw ?? 0) * Math.PI / 180;
+  let gateEdge;
+  for (const [index, { a, b }] of walls.entries()) {
+    const length = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (length <= halfOpening * 2) continue;
+    const dx = (b[0] - a[0]) / length;
+    const dz = (b[1] - a[1]) / length;
+    if (Math.abs(dx * Math.cos(yaw) - dz * Math.sin(yaw)) < 0.985) continue;
+    const center = closestOnEdge(gate.x, gate.z, a, b);
+    const gap = Math.hypot(center[0] - gate.x, center[1] - gate.z);
+    if (gap > 0.75 || (gateEdge && gap >= gateEdge.gap)) continue;
+    if ([a, b].some((end) => Math.hypot(center[0] - end[0], center[1] - end[1]) <= halfOpening + 0.1)) continue;
+    gateEdge = { index, center, gap, dx, dz };
+  }
+  if (gateEdge) {
+    const { index, center: [x, z], dx, dz } = gateEdge;
+    const { a, b } = walls[index];
+    walls.splice(index, 1,
+      { id: 'wall-street-a', a, b: [x - dx * halfOpening, z - dz * halfOpening] },
+      { id: 'wall-street-b', a: [x + dx * halfOpening, z + dz * halfOpening], b });
+  }
+  return walls;
+}
+
 export function insideLand(boundary, x, z, inset = 0, includeStreet = false) {
   const { points, minX, maxX, minZ, maxZ, streetZ } = boundary;
   if (!points) {

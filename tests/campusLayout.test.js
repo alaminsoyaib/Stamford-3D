@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { closestOnEdge, insideLand, perimeterWalls, validLandOutline } from '../src/campusBoundary.js';
+import { stamfordLandOutline } from '../src/campusLandPresets.js';
 import { validateCampusLayout, layoutKey, readCampusLayout } from '../src/campusLayout.js';
 
 test('validateCampusLayout rejects non-object inputs', () => {
@@ -67,6 +69,46 @@ test('the room and bus update carries forward old saves and moves only stock pos
     const { map } = readCampusLayout(source);
     assert.deepEqual(map.buildings.guardian, saved.buildings.guardian);
     assert.deepEqual(map.buildings.bus, saved.buildings.bus);
+  } finally {
+    delete globalThis.window;
+  }
+});
+
+test('the stock survey outline matches the editor preset and keeps the gate clear', () => {
+  const map = JSON.parse(readFileSync(new URL('../CAMPUS_MAP.json', import.meta.url), 'utf8'));
+  assert.deepEqual(map.boundary.points, stamfordLandOutline);
+  assert.ok(validLandOutline(stamfordLandOutline));
+  assert.ok(insideLand(map.boundary, map.gate.x, map.gate.z - 1));
+  assert.ok(!insideLand(map.boundary, map.gate.x, map.gate.z + 1));
+  const walls = perimeterWalls(map);
+  assert.equal(walls.length, stamfordLandOutline.length + 1);
+  assert.equal(walls.filter(({ id }) => id.includes('street')).length, 2);
+  for (const { a, b } of walls) {
+    const [x, z] = closestOnEdge(map.gate.x, map.gate.z, a, b);
+    assert.ok(Math.hypot(x - map.gate.x, z - map.gate.z) >= map.gate.opening / 2);
+  }
+});
+
+test('the survey updates old stock boundaries and carries forward edited layouts', () => {
+  const source = readFileSync(new URL('../CAMPUS_MAP.json', import.meta.url), 'utf8').replaceAll('\r\n', '\n');
+  const saved = JSON.parse(source);
+  delete saved.boundary.points;
+  saved.boundary.walls = perimeterWalls(saved);
+  saved.buildings.cse.x += 1;
+  globalThis.window = {
+    sessionStorage: { getItem: () => null },
+    localStorage: { getItem: (key) => key === 'stamford-layout-v1-2488626924' ? JSON.stringify(saved) : null }
+  };
+  try {
+    for (const text of [source, source.replaceAll('\n', '\r\n')]) {
+      const { map } = readCampusLayout(text);
+      assert.deepEqual(map.boundary.points, stamfordLandOutline);
+      assert.equal(map.buildings.cse.x, saved.buildings.cse.x);
+    }
+    saved.boundary.walls.pop();
+    assert.deepEqual(readCampusLayout(source).map.boundary, saved.boundary);
+    saved.boundary.points = [[-10, -2], [10, -2], [10, 5], [-10, 5]];
+    assert.deepEqual(readCampusLayout(source).map.boundary, saved.boundary);
   } finally {
     delete globalThis.window;
   }

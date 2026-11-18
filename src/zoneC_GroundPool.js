@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { addLocalCollider, floor, sign, standard } from './buildingFactory.js';
+import { worldOutline } from './campusFootprints.js';
 import { batchStaticMeshes, box, createPortal, cylinder, groupAt, part, rod } from './sceneKit.js';
 
 const roofGeometry = new THREE.ConeGeometry(1, 1, 4);
@@ -12,7 +13,11 @@ function buildGroundDetails(parent, kit) {
   const lawn = groupAt(parent, 'Central lawn', [ground.x, 0, ground.z]);
   kit.layout.add('ground', lawn, ground, { surface: true });
   floor(lawn, m.field, 0, 0, ground.width, ground.depth, 0.022, 2.4);
-  const court = kit.prop(parent, 'court', 'Sports court', -1.9, -35.8, 0, { surface: true });
+  const surveyed = Boolean(kit.map.surveyTrees);
+  const courtSite = kit.prop(parent, 'court', 'Sports court', surveyed ? ground.x : -1.9,
+    surveyed ? ground.z : -35.8, surveyed ? ground.yaw * Math.PI / 180 : 0, { surface: true });
+  const court = groupAt(courtSite, 'Court surface and markings', [0, 0, 0]);
+  if (surveyed) court.scale.setScalar(0.81);
   const courtX = 0;
   const courtZ = 0;
   const courtW = 14;
@@ -40,6 +45,7 @@ function buildGroundDetails(parent, kit) {
   circle.rotation.x = -Math.PI / 2;
   circle.castShadow = false;
   circle.userData.grade = true;
+  if (surveyed) return;
 
   const shelter = kit.prop(parent, 'shelter', 'Field shelter', -15.2, -43.4, Math.PI / 2);
   box(shelter, m.concrete, [5.9, 0.12, 4.1], [0, 0.06, 0]);
@@ -82,7 +88,9 @@ function buildCanteen(parent, kit) {
       }
     }
   });
-  for (const [x, z] of [[-12.7, -50.25], [-8.45, -50.6]]) {
+  const tables = kit.map.surveyTrees ? worldOutline([[-2.4, 4.2], [2.3, 4.2]], kit.map.buildings.canteen)
+    : [[-12.7, -50.25], [-8.45, -50.6]];
+  for (const [x, z] of tables) {
     const patio = kit.prop(parent, 'umbrella', 'Café umbrella and table', x, z);
     cylinder(patio, m.steel, 0.044, 2.4, [0, 1.2, 0]);
     part(patio, parasolGeometry, m.cafe, [0, 2.44, 0], [1.42, 1, 1.42]);
@@ -215,7 +223,10 @@ function buildPoolSurroundings(parent, kit) {
       }
     }
   });
-  const gate = kit.prop(parent, 'pool-gate', 'Swimming pool gate', 10.5, -54.85);
+  const surveyed = Boolean(kit.map.surveyTrees);
+  const { pool } = kit.map;
+  const [[gateX, gateZ]] = surveyed ? worldOutline([[0, pool.depth / 2 + 4.15]], pool) : [[10.5, -54.85]];
+  const gate = kit.prop(parent, 'pool-gate', 'Swimming pool gate', gateX, gateZ, surveyed ? pool.yaw * Math.PI / 180 : 0);
   for (const px of [-3.34, 3.34]) {
     box(gate, m.brick, [0.53, 2.58, 0.58], [px, 1.29, 0]);
     box(gate, m.concrete, [0.68, 0.15, 0.73], [px, 2.59, 0]);
@@ -224,6 +235,7 @@ function buildPoolSurroundings(parent, kit) {
   box(gate, m.blue, [7.17, 0.5, 0.2], [0, 2.62, 0]);
   sign(gate, { title: 'SWIMMING POOL', subtitle: 'STAMFORD UNIVERSITY BANGLADESH', width: 6.97, height: 0.45,
     position: [0, 2.62, 0.106], serif: true });
+  if (surveyed) return;
   kit.tree(parent, 1.45, -65.2, 1.22, 'palm', 281);
   kit.tree(parent, 18.5, -66.1, 0.92, 'palm', 386);
   for (const [px, pz, scale, type] of [

@@ -43,6 +43,8 @@ Record completed changes here, with verification when it helps a future handoff.
 
 ### Changed
 
+- Placed and sized CSE, Civil, and the L-shaped Official Building from their AutoCAD blocks. Traced the front garden and placed 47 surveyed trees. Rearranged overlapping facilities and updated the affected checkpoints and pool portal position.
+- Traced the default campus perimeter and empty-layout preset from the supplied AutoCAD image. Added a survey preview for existing layouts and kept an opening at the main gate in the generated perimeter walls.
 - Lowered the first CSE lattice row to align its upper band with the first-floor band on the Academic Building. Recreated the sloped tiled sign and founder's plaque from the courtyard photos, with the original lettering, crest, portrait, and inscription.
 - Rebuilt the adjoining guard and guardian rooms with corrugated metal roofing, a measured 10 ft 3 in blue eave, recessed glazing, and an open guard shelter. Rebuilt the blue varsity bus at its measured 8 ft 11 in roofline with sliding windows, wheel arches, a folding passenger door, and the photographed crest. Moved the stock bus beside CSE and carried forward existing saved layouts.
 - Rebuilt the CSE exterior with terracotta screens, white trim, the measured 60 ft 2 in roof edge, a roof sign mapped from the original photo, and a steel stair at the right-rear corner. Removed the front posters and replaced the ground-level doors and windows with a lattice row over a recessed base.
@@ -91,6 +93,8 @@ Record completed changes here, with verification when it helps a future handoff.
 
 ### Verification
 
+- Compared the modeled footprints, garden, and tree markers with the survey image. Checked the Admin recess collision, minimap geometry, pool portal coordinates, checkpoints, and existing layout tests in Node.
+- Checked the survey trace against the PNG, confirmed the stock buildings, walkways, and pool fit inside it, and verified the gate opening and saved-layout migration with Node tests.
 - Compared the CSE and Academic Building first-floor bands in Chromium and checked the ground sign and plaque from the courtyard. Verified the monument's colliders, editor resizing and undo, saved-layout reload, and the campus landing preview. The Vite build and all 11 unit tests passed.
 - Compared close-up Chromium views with the room and bus photos, checked roof heights, collision bounds, editor copies, minimap footprints, and all four checkpoint views, and loaded both scenes from the static server. The Vite build and all 11 unit tests passed, including migration of existing saved layouts.
 - Checked the CSE front and rear views, recessed base, stair collision, minimap, checkpoint 2, and landing hero in Chromium. Verified floor-count changes, undo, JSON export, and saved layout reload. Both pages built with Vite and the unit suite passed.
