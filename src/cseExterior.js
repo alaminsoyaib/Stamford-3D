@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { academicStoryHeight, addLocalCollider, sign, standard } from './buildingFactory.js';
-import { box, canvasTexture, groupAt, part, rod, seededRandom, unitPlane } from './sceneKit.js';
+import { academicStoryHeight, officialStoryHeight, sign, standard } from './buildingFactory.js';
+import { box, canvasTexture, groupAt, part, seededRandom, unitPlane } from './sceneKit.js';
 
 const soffitThickness = 0.28;
 const fasciaHeight = 2.35;
@@ -141,115 +141,8 @@ function buildRoof(root, { plaster, fascia, blue, roofDeck }, { width, depth, fa
   }
 }
 
-function stairRail(group, metal, x, start, end) {
-  const height = 0.94;
-  const bottom = 0.16;
-  const [y, z] = start;
-  const [topY, topZ] = end;
-  rod(group, metal, [x, y + height, z], [x, topY + height, topZ], 0.031);
-  rod(group, metal, [x, y + bottom, z], [x, topY + bottom, topZ], 0.021);
-  const bays = Math.max(1, Math.round(Math.abs(topZ - z) / 0.48));
-  for (let bay = 0; bay <= bays; bay++) {
-    const t = bay / bays;
-    const py = THREE.MathUtils.lerp(y, topY, t);
-    const pz = THREE.MathUtils.lerp(z, topZ, t);
-    rod(group, metal, [x, py, pz], [x, py + height, pz], 0.023);
-    if (bay === bays) continue;
-    const qy = THREE.MathUtils.lerp(y, topY, (bay + 1) / bays);
-    const qz = THREE.MathUtils.lerp(z, topZ, (bay + 1) / bays);
-    rod(group, metal, [x, py + bottom, pz], [x, qy + height - 0.065, qz], 0.012);
-    rod(group, metal, [x, py + height - 0.065, pz], [x, qy + bottom, qz], 0.012);
-  }
-}
-
-function treadPlate() {
-  const map = canvasTexture(128, 64, (ctx, w, h) => {
-    ctx.fillStyle = '#69594d';
-    ctx.fillRect(0, 0, w, h);
-    for (let row = 0; row < 8; row++) {
-      for (let column = 0; column < 12; column++) {
-        ctx.save();
-        ctx.translate((column + 0.5) * w / 12, (row + 0.5) * h / 8);
-        ctx.rotate((row + column) % 2 ? 0.65 : -0.65);
-        ctx.fillStyle = '#4b3f35';
-        ctx.fillRect(-3.5, -0.6, 7, 2.4);
-        ctx.fillStyle = '#9b8f82';
-        ctx.fillRect(-3.5, -1.1, 6, 0.9);
-        ctx.restore();
-      }
-    }
-  });
-  map.wrapS = THREE.RepeatWrapping;
-  map.repeat.x = 4;
-  return standard('#ffffff', { map, metalness: 0.34, roughness: 0.71 });
-}
-
-function buildStair(root, colliders, materials, { width, depth, floors, story }) {
-  if (floors < 2) return;
-  const { plaster, darkMetal, treads, nosing } = materials;
-  const stairWidth = 1.91;
-  const landingDepth = 1.43;
-  const halfWidth = stairWidth / 2;
-  const steps = Math.round(story / 0.172);
-  const run = steps * 0.263;
-  const turnsCorner = floors > 2 && width >= run + landingDepth;
-  const cornerZ = -depth / 2 - halfWidth - 0.14;
-  const lowerEndZ = turnsCorner ? cornerZ + halfWidth : -depth / 2 + 0.42 + landingDepth;
-  const stair = groupAt(root, 'Right-rear exterior stair beside the auditorium', [width / 2 + halfWidth + 0.14, 0, 0]);
-  box(stair, plaster, [stairWidth + 0.19, 0.125, 0.91], [0, 0.0625, lowerEndZ + run + 0.25]);
-  const lower = addFlight([0, 0, lowerEndZ + run], 0);
-
-  if (!turnsCorner) {
-    addDoorLanding(lower);
-    return;
-  }
-
-  // Turn around the rear corner on a shared landing.
-  const corner = groupAt(stair, 'Corner landing', [0, story, cornerZ]);
-  box(corner, treads, [stairWidth, 0.145, stairWidth], [0, -0.0725, 0]);
-  stairRail(corner, darkMetal, halfWidth, [0, halfWidth], [0, -halfWidth]);
-  const rearEdge = groupAt(corner, 'Rear landing guard rail', [0, 0, -halfWidth], Math.PI / 2);
-  stairRail(rearEdge, darkMetal, 0, [0, halfWidth], [0, -halfWidth]);
-  rod(corner, darkMetal, [halfWidth, -story, -halfWidth], [halfWidth, 0, -halfWidth], 0.066);
-  addLocalCollider(colliders, corner, 0, 0, stairWidth + 0.15, stairWidth);
-
-  const upper = addFlight([-halfWidth, story, cornerZ], Math.PI / 2);
-  addDoorLanding(upper);
-
-  function addFlight(position, yaw) {
-    const section = groupAt(stair, 'Steel stair flight and landing', position, yaw);
-    const rise = story / steps;
-    const stride = run / steps;
-    for (let step = 0; step < steps; step++) {
-      const stepZ = -(step + 0.5) * stride;
-      box(section, treads, [stairWidth, rise - 0.008, stride + 0.012], [0, (step + 0.5) * rise + 0.004, stepZ]);
-      box(section, nosing, [stairWidth, 0.023, 0.041], [0, (step + 1) * rise - 0.012, stepZ + stride / 2 - 0.005]);
-    }
-    for (const x of [-halfWidth, halfWidth]) {
-      rod(section, darkMetal, [x, -0.015, 0], [x, story - 0.14, -run], 0.073);
-      stairRail(section, darkMetal, x, [0, 0], [story, -run]);
-    }
-    addLocalCollider(colliders, section, 0, -run / 2, stairWidth + 0.15, run);
-    return section;
-  }
-
-  function addDoorLanding(section) {
-    const landing = groupAt(section, 'Upper stair landing at door', [0, story, -run - landingDepth / 2]);
-    box(landing, treads, [stairWidth, 0.145, landingDepth], [0, -0.0725, 0]);
-    box(landing, treads, [0.21, 0.145, landingDepth], [-halfWidth - 0.07, -0.0725, 0]);
-    stairRail(landing, darkMetal, halfWidth, [0, landingDepth / 2], [0, -landingDepth / 2]);
-    const endRail = groupAt(landing, 'End landing guard rail', [0, 0, -landingDepth / 2], Math.PI / 2);
-    stairRail(endRail, darkMetal, 0, [0, halfWidth], [0, -halfWidth]);
-    for (const x of [-halfWidth, halfWidth]) {
-      rod(landing, darkMetal, [x, -story - section.position.y, -landingDepth / 2], [x, 0, -landingDepth / 2], 0.066);
-    }
-    box(landing, plaster, [0.14, 2.31, 1.36], [-halfWidth - 0.12, 1.15, 0]);
-    box(landing, darkMetal, [0.065, 2.09, 1.1], [-halfWidth - 0.04, 1.045, 0]);
-    addLocalCollider(colliders, landing, 0, 0, stairWidth + 0.15, landingDepth);
-  }
-}
-
 export async function createCseExterior(kit) {
+  const adjacentStoryHeight = kit.map.buildings.official?.academicWing ? officialStoryHeight : academicStoryHeight;
   const url = new URL('../assets/cse-fascia.webp', import.meta.url);
   const photo = await new THREE.TextureLoader().loadAsync(url.href).catch(() => null);
   if (photo) {
@@ -262,10 +155,7 @@ export async function createCseExterior(kit) {
     screens: brickScreen(),
     fascia: photo && standard('#ffffff', { map: photo, roughness: 0.85 }),
     blue: standard('#304968'),
-    roofDeck: standard('#7b7569'),
-    darkMetal: standard('#393532', { metalness: 0.48, roughness: 0.69 }),
-    treads: treadPlate(),
-    nosing: standard('#a69a89', { metalness: 0.43 })
+    roofDeck: standard('#7b7569')
   };
   return {
     groundExterior: (building) => buildGround(building, materials),
@@ -274,11 +164,10 @@ export async function createCseExterior(kit) {
       const rows = Math.max(1, floors - 1);
       const levels = [screenBase];
       for (let row = 1; row < rows; row++) {
-        levels.push(THREE.MathUtils.lerp(academicStoryHeight, height, (row - 1) / (rows - 1)));
+        levels.push(THREE.MathUtils.lerp(adjacentStoryHeight, height, (row - 1) / (rows - 1)));
       }
       buildScreen(root, materials, building, [...levels, height]);
       buildRoof(root, materials, building);
-      buildStair(root, kit.colliders, materials, building);
       const rearSignY = levels[1] ?? screenBase;
       sign(root, {
         title: 'DEPT OF CSE', position: [width * 0.16, rearSignY + 0.02, -facade - 0.2],

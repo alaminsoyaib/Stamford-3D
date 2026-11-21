@@ -43,6 +43,14 @@ Record completed changes here, with verification when it helps a future handoff.
 
 ### Changed
 
+- Shifted the Academic wing's upper exterior stair flight slightly to the left of the two-storey frontage wall (`src/academicStairs.js`, `src/buildingFactory.js`) so the treads, right stringer, railing, and support post clear the white roof trim overhang, while bridging the open upper landing deck flush to the roof coping. Verified syntax, unit tests, and stair-to-trim clearance in Node.
+- Replaced the stair wrapping around the CSE wall with two exterior flights at the Academic wing. Checked the roof contacts, surveyed passage clearance, and stair rebuilds in Node.
+- Removed the windows from the two Academic wing walls facing the one-storey roof. Verified both wall faces and the courtyard-side glazing in Node.
+- Closed the ground-floor opening at the Official and Academic junction and aligned the trim and window rows. Verified the wall, floor bands, and collision bounds for both join configurations in Node.
+- Lowered the marked strip of the Academic wing to one storey and merged the connected wings into one Official Building. Verified the three roof heights, combined footprint, migrated doors, transforms, resizing, deck storage, and duplication in Node.
+- Joined the Official and Academic buildings and extended the third floor over the marked end of the Academic roof. The surveyed layout links the existing footprints, while matching older layouts join wall to wall. Verified the roof heights, collision clearance, and editor resizing in Node.
+- Set the Official Building's third floor back over the marked rear section, with two floors at the front and west wing. Kept one editor object and the existing footprint. Verified floor heights, collision bounds, legacy layouts, and resizing in Node.
+- Traced the garden's outer curb directly from the AutoCAD raster and remeasured the CSE, Civil, and Official footprints from the labeled block edges. The minimap and 3D garden share the corrected outline.
 - Placed and sized CSE, Civil, and the L-shaped Official Building from their AutoCAD blocks. Traced the front garden and placed 47 surveyed trees. Rearranged overlapping facilities and updated the affected checkpoints and pool portal position.
 - Traced the default campus perimeter and empty-layout preset from the supplied AutoCAD image. Added a survey preview for existing layouts and kept an opening at the main gate in the generated perimeter walls.
 - Lowered the first CSE lattice row to align its upper band with the first-floor band on the Academic Building. Recreated the sloped tiled sign and founder's plaque from the courtyard photos, with the original lettering, crest, portrait, and inscription.
@@ -93,6 +101,7 @@ Record completed changes here, with verification when it helps a future handoff.
 
 ### Verification
 
+- Compared the garden trace and building outlines with the survey pixels. Checked the garden mesh, building footprint clearance, and older layout loading in Node.
 - Compared the modeled footprints, garden, and tree markers with the survey image. Checked the Admin recess collision, minimap geometry, pool portal coordinates, checkpoints, and existing layout tests in Node.
 - Checked the survey trace against the PNG, confirmed the stock buildings, walkways, and pool fit inside it, and verified the gate opening and saved-layout migration with Node tests.
 - Compared the CSE and Academic Building first-floor bands in Chromium and checked the ground sign and plaque from the courtyard. Verified the monument's colliders, editor resizing and undo, saved-layout reload, and the campus landing preview. The Vite build and all 11 unit tests passed.

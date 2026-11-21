@@ -1,4 +1,5 @@
 import { addLocalCollider, floor, sign, standard } from './buildingFactory.js';
+import { academicBuildingOptions } from './academicBuilding.js';
 import { buildCampusBus } from './campusBus.js';
 import { westWingBounds } from './campusFootprints.js';
 import { createCseExterior, cseStoryHeight } from './cseExterior.js';
@@ -60,13 +61,15 @@ export async function buildCSEAdmission(scene, kit) {
   });
 
   kit.building(zone, 'official', 'official', {
+    academicWing: academicBuildingOptions(kit),
+    rearFloorSetback: 0.32,
     title: 'OFFICIAL BUILDING', subtitle: 'ADMISSION & CAMPUS SERVICES', signWidth: 7.05,
     doors: [
       { x: -4.8, title: 'Admission Office', subtitle: 'ADMISSIONS WELCOME CENTER', width: 2.8, signWidth: 3.92, glass: true },
       { x: 5.6, title: 'Academic Gate 01', width: 2.15, signWidth: 3.0, glass: true }
     ],
     windows: [{ x: -9.5, width: 2.1 }, { x: 0.13, width: 2.14 }, { x: 9.4, width: 2.3 }],
-    details({ root, facade, fixtureX, spec, height }) {
+    details({ root, facade, fixtureX, spec, height, frontFloors }) {
       box(root, m.blue, [4.54, 0.21, 1.21], [fixtureX(-4.8), 2.89, facade + 0.34]).rotation.x = 0.08;
       const wing = westWingBounds(spec);
       if (!wing) return;
@@ -74,15 +77,15 @@ export async function buildCSEAdmission(scene, kit) {
       box(block, m.official, [wing.width, height, wing.depth], [0, height / 2, 0]);
       box(block, m.concrete, [wing.width, 0.22, wing.depth], [0, height + 0.08, 0]);
       box(block, m.official, [wing.width, 0.37, wing.depth], [0, height + 0.35, 0]);
-      for (let level = 0; level < spec.floors; level++) {
-        const story = height / spec.floors;
-        const bays = Math.max(1, Math.floor(wing.width / 3));
+      const story = height / frontFloors;
+      const bays = Math.max(1, Math.floor(wing.width / 3));
+      for (let level = 0; level < frontFloors; level++) {
         for (let bay = 0; bay < bays; bay++) {
           const x = ((bay + 0.5) / bays - 0.5) * wing.width;
           kit.windowAt(block, x, (level + 0.5) * story, wing.depth / 2 + 0.025, Math.min(2.16, wing.width * 0.6), 1.25, m.concrete);
         }
       }
-      addLocalCollider(kit.colliders, block, 0, 0, wing.width, wing.depth, true);
+      addLocalCollider(kit.colliders, block, 0, 0, wing.width, wing.depth, true, height + 0.535);
     }
   });
   if (!map.surveyTrees) for (const px of [-7.7, -2.4]) kit.planter(zone, 9 + px, -0.87, 0.39, 44 + px);

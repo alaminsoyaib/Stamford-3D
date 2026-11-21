@@ -56,6 +56,8 @@ Press **E** or select **Layout editor** to open the overhead view. Click a build
 
 Choose **Move** (`G`), **Rotate** (`R`), or **Scale** (`S`), then drag the colored handles. For buildings, enter width and depth in metres or set the floor count directly. The vertical handle adds or removes whole floors. Each building keeps its floor height, and doors and windows keep their size as the façade is rebuilt. Other scalable props use percentages. Press Enter or leave a field to apply it. The arrow keys nudge by 1 m, or 5 m with Shift. `Q` and `T` rotate by 15°.
 
+The Official Building and Academic wing form one building in the layout editor. The rear strip of the Academic wing is one floor high, the adjacent frontage is two floors, and the adjoining end reaches the Official Building’s third floor. Two exterior stair flights connect the ground, the lower roof, and the upper level. The two walls facing the lower roof are solid plaster. Width and depth refer to the main block, and the floor count shows the tallest section.
+
 In **Land boundary**, enter a percentage and select **Scale outline**, then **Apply boundary**. For example, 150% increases each dimension by half around the outline’s center. Buildings and other pieces stay where you placed them.
 
 Matching stored pieces share a card with a quantity badge. Dragging a card out or deleting from it acts on one piece at a time.
@@ -70,7 +72,7 @@ Edits apply to the current tour and save in this browser. **Export JSON** downlo
 
 ## Blueprint and graphics
 
-`CAMPUS_MAP.json` records the footprints, façade palette, walkways, checkpoint poses and photo references. The default perimeter, CSE, Civil, Official, front garden, and 47 tree markers follow the AutoCAD survey image at the same scene scale. The drawing labels CSE as A Academic, Civil as B Academic, and Official as A Admin. Layouts with custom placements stay available in browser saves. To load the full surveyed arrangement, import the repository's default `CAMPUS_MAP.json` in the editor. Campus eye height is 1.7 metres on land.
+`CAMPUS_MAP.json` records the footprints, façade palette, walkways, checkpoint poses and photo references. The default perimeter, CSE, Civil, Official, front garden, and 47 tree markers follow the AutoCAD survey image at the same scene scale. The garden mesh and minimap share the traced outer curb. The drawing labels CSE as A Academic, Civil as B Academic, and Official as A Admin. Layouts with custom placements stay available in browser saves. To load the full surveyed arrangement, import the repository's default `CAMPUS_MAP.json` in the editor. Campus eye height is 1.7 metres on land.
 
 The zone modules assemble exterior models from grouped meshes. Repeated static parts are instanced, and the building footprints, gate leaves, pillars and walls contribute to the XZ collision rectangles. The pool surface uses the sum of a sine wave and a cosine wave. The reef kelp uses a travelling sine wave with fixed roots. Fish follow circular orbits, face the orbit tangent, and swing their tails around articulated pivots. The ocean interpolates fog and light by depth, with a navigable range from 0 to 120 metres.
 

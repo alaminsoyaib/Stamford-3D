@@ -372,7 +372,7 @@ export function makeMinimap(map) {
   }
   for (const [id, building] of Object.entries(map.buildings)) {
     if (removed.has(id)) continue;
-    if (building.westWing) polygon('footprint', buildingOutline(building), building);
+    if (building.westWing || building.rearLink || building.academicWing) polygon('footprint', buildingOutline(building), building);
     else rect('footprint', building);
   }
   for (const [index, [x, z, radius]] of (map.surveyTrees ?? []).entries()) {

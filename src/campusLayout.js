@@ -1,11 +1,16 @@
 import * as THREE from 'three';
 import { campusGatePose, perimeterWalls } from './campusBoundary.js';
+import { academicWingBounds, worldOutline } from './campusFootprints.js';
 
 const scaleMin = 0.1;
 const scaleMax = 20;
 const xz = new THREE.Vector3();
 // Stock map hashes for LF and CRLF checkouts, newest first.
 const stockLayoutKeys = [
+  ['stamford-layout-v1-2307194014', 'stamford-layout-v1-3637552331'],
+  ['stamford-layout-v1-4170307264', 'stamford-layout-v1-2688460916'],
+  ['stamford-layout-v1-2547189645', 'stamford-layout-v1-3022912038'],
+  ['stamford-layout-v1-2239691700', 'stamford-layout-v1-1444766042'],
   ['stamford-layout-v1-1442516863', 'stamford-layout-v1-108252353'],
   ['stamford-layout-v1-3952416041', 'stamford-layout-v1-4446907'],
   ['stamford-layout-v1-2488626924', 'stamford-layout-v1-1431998899'],
@@ -66,10 +71,11 @@ function updateStockBoundary(saved, stock) {
 }
 
 function updateStockSurveyPlan(saved, stock) {
+  const stockBuildings = { ...stock.buildings, academic: stockAcademicLayout(stock) };
   if (saved.surveyTrees || saved.deck?.length || saved.removedObjects?.length
     || JSON.stringify(saved.boundary.points) !== JSON.stringify(stock.boundary.points)
     || Object.keys(saved.elements ?? {}).some((id) => !['bus-parking', 'gate-platform', 'gate-planting-bed'].includes(id))
-    || Object.keys(saved.buildings ?? {}).some((id) => !Object.hasOwn(stock.buildings, id))) return;
+    || Object.keys(saved.buildings ?? {}).some((id) => !stockBuildings[id])) return;
   if (saved.boundary.walls && JSON.stringify(saved.boundary.walls) !== JSON.stringify(perimeterWalls(saved))) return;
   const formerBuildings = {
     cse: [8.9, -1.5, 22, 17, 0], official: [9, -8, 24, 12, 0], civil: [-28, -42.4, 23, 14.2, 90],
@@ -85,13 +91,80 @@ function updateStockSurveyPlan(saved, stock) {
   const parking = saved.elements?.['bus-parking'];
   if (parking && (parking.x !== 24.2 || parking.z !== 9.3 || parking.yaw !== 33)) return;
   for (const id of Object.keys(formerBuildings)) {
-    const { x, z, width, depth, yaw, westWing } = stock.buildings[id];
+    const { x, z, width, depth, yaw, westWing } = stockBuildings[id];
     Object.assign(saved.buildings[id], { x, z, width, depth, yaw });
     if (westWing) saved.buildings[id].westWing = structuredClone(westWing);
     delete saved.buildings[id].facadeWidth;
   }
   for (const key of ['garden', 'ground', 'pool', 'surveyTrees', 'stops', 'areas']) saved[key] = structuredClone(stock[key]);
   if (parking) Object.assign(parking, { x: stock.buildings.bus.x, z: stock.buildings.bus.z, yaw: stock.buildings.bus.yaw });
+}
+
+function updateSurveyFootprints(saved, stock) {
+  const garden = saved.garden;
+  if (garden && (!garden.points || layoutKey(JSON.stringify(garden.points)) === 'stamford-layout-v1-1575906453')) {
+    const factor = garden.points ? 1 : Math.min(garden.radiusX / stock.garden.radiusX, garden.radiusZ / stock.garden.radiusZ);
+    if (Number.isFinite(factor) && factor > 0) {
+      garden.points = stock.garden.points.map(([x, z]) => [rounded(x * factor), rounded(z * factor)]);
+    }
+  }
+
+  const previous = {
+    cse: { x: -21.6398, z: -22.542, width: 22.785, depth: 22.785 },
+    official: { x: 18.1777, z: -1.1545, width: 30.6125, depth: 33.79 },
+    civil: { x: 0.4502, z: -52.2587, width: 24.025, depth: 24.2575 }
+  };
+  for (const [id, old] of Object.entries(previous)) {
+    const building = saved.buildings?.[id];
+    if (building?.width !== old.width || building.depth !== old.depth) continue;
+    const { x, z, yaw, width, depth, westWing } = stock.buildings[id];
+    if (building.x === old.x && building.z === old.z && building.yaw === yaw) Object.assign(building, { x, z });
+    Object.assign(building, { width, depth });
+    if (building.westWing?.widthRatio === 0.5519 && building.westWing.depthRatio === 0.4839 && westWing) {
+      building.westWing = structuredClone(westWing);
+    }
+  }
+}
+
+function stockAcademicLayout(stock) {
+  const official = stock.buildings?.official;
+  if (!official?.academicWing) return stock.buildings?.academic;
+  const wing = academicWingBounds(official);
+  const [[x, z]] = worldOutline([[wing.x, wing.z]], official);
+  return { ...wing, x: rounded(x), z: rounded(z), yaw: rounded(official.yaw + wing.yaw) };
+}
+
+function mergeAcademicWing(saved, stock) {
+  const { academic, official } = saved.buildings ?? {};
+  const defaults = stock.buildings?.official;
+  if (!academic || !official || !defaults?.academicWing || official.academicWing
+      || [...(saved.deck ?? []), ...(saved.removedObjects ?? [])].some((id) => id === 'official' || id === 'academic')) return;
+
+  const sameFootprint = (building, original) => ['x', 'z', 'yaw', 'width', 'depth'].every(
+    (field) => Math.abs(building[field] - original[field]) < 0.001
+  );
+  if (sameFootprint(academic, stockAcademicLayout(stock)) && sameFootprint(official, defaults)) {
+    official.rearLink = structuredClone(defaults.rearLink);
+  } else {
+    const yaw = official.yaw + 90;
+    const yawError = THREE.MathUtils.euclideanModulo(academic.yaw - yaw + 180, 360) - 180;
+    const [[x, z]] = worldOutline([[-(official.width + academic.depth) / 2, (academic.width - official.depth) / 2]], official);
+    if (official.westWing || Math.abs(yawError) > 5 || Math.hypot(academic.x - x, academic.z - z) > 1.5) return;
+    delete official.rearLink;
+  }
+  official.academicWing = {
+    ...defaults.academicWing,
+    widthRatio: academic.width / official.depth,
+    depthRatio: academic.depth / official.width,
+    facadeWidth: academic.facadeWidth ?? academic.width,
+    upperEndWidthRatio: academic.upperEndWidthRatio ?? defaults.academicWing.upperEndWidthRatio
+  };
+  for (const door of Object.values(saved.elements ?? {})) {
+    if (door.type !== 'door' || door.building !== 'academic') continue;
+    door.building = 'official';
+    door.wall = `academic-${door.wall}`;
+  }
+  delete saved.buildings.academic;
 }
 
 export function readCampusLayout(source) {
@@ -112,8 +185,10 @@ export function readCampusLayout(source) {
           if (!saved) continue;
           const savedMap = JSON.parse(saved);
           if (candidate !== key && stockLayoutKeys.at(-1).includes(candidate)) updateStockRoomAndBusPoses(savedMap, stock);
-          if (candidate !== key && version <= 1) updateStockBoundary(savedMap, stock);
-          if (candidate !== key && version === 0) updateStockSurveyPlan(savedMap, stock);
+          if (candidate !== key && version <= 5) updateStockBoundary(savedMap, stock);
+          if (candidate !== key && version <= 4) updateStockSurveyPlan(savedMap, stock);
+          if (version >= 0 && version <= 3) updateSurveyFootprints(savedMap, stock);
+          mergeAcademicWing(savedMap, stock);
           map = savedMap;
           break findSave;
         } catch {

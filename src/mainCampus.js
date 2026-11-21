@@ -406,7 +406,12 @@ export async function startCampus() {
     if (!droneAudio.muted) droneAudio.start();
   });
 
-  function obstacleTop({ group }) {
+  function obstacleTop({ group, local }) {
+    if (local?.top !== undefined) {
+      // Stepped roofs share a building root but have different local heights.
+      const matrix = group.matrixWorld.elements;
+      return matrix[13] + local.top * matrix[5] + playerRadius;
+    }
     if (!obstacleTops.has(group)) {
       obstacleTops.set(group, obstacleBounds.setFromObject(group).max.y + playerRadius);
     }

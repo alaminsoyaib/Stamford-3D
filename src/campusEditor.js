@@ -240,7 +240,7 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
     }
     sizeDetail.hidden = !building && !door;
     sizeDetail.value = building ? `${rounded(building.story * spec.floors)} m wall height · ${building.story} m per floor`
-      : door ? `Attached to the ${spec.wall} wall` : '';
+      : door ? `Attached to the ${spec.wall.replace(/^academic-/, 'Academic wing’s ')} wall` : '';
     if (nameInput && document.activeElement !== nameInput) {
       nameInput.value = selected?.label ?? '';
     }
@@ -646,8 +646,12 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
     for (const entry of host ? [host] : entries.values()) {
       if (!entry.building) continue;
       entry.root.worldToLocal(localPoint.copy(groundPoint));
-      const { width, depth } = entry.spec;
-      if (Math.abs(localPoint.x) > width / 2 + 2 || Math.abs(localPoint.z) > depth / 2 + 2) continue;
+      const { width, depth, academicWing } = entry.spec;
+      const { min, max } = entry.bounds;
+      const outside = academicWing
+        ? groundPoint.x < min.x - 2 || groundPoint.x > max.x + 2 || groundPoint.z < min.z - 2 || groundPoint.z > max.z + 2
+        : Math.abs(localPoint.x) > width / 2 + 2 || Math.abs(localPoint.z) > depth / 2 + 2;
+      if (outside) continue;
       for (const wall of entry.building.wallSurfaces) {
         const dx = localPoint.x - wall.x;
         const dz = localPoint.z - wall.z;

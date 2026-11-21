@@ -6,6 +6,48 @@ import { buildGatePlantingBed } from './gatePlantingBed.js';
 import { createGateRoomModels } from './gateRooms.js';
 import { batchStaticMeshes, box, cylinder, groupAt } from './sceneKit.js';
 
+function buildSurveyCurb(lawn, rim, height, materials) {
+  // Keep the outside face on the survey trace. Join the inside corners with mitres.
+  const area = rim.reduce((sum, [x, z], i) => {
+    const [nx, nz] = rim[(i + 1) % rim.length];
+    return sum + x * nz - z * nx;
+  }, 0);
+  const winding = Math.sign(area) || 1;
+  const normals = rim.map(([x, z], i) => {
+    const [nx, nz] = rim[(i + 1) % rim.length];
+    const length = Math.hypot(nx - x, nz - z) || 1;
+    return [winding * (z - nz) / length, winding * (nx - x) / length];
+  });
+  const inside = rim.map(([x, z], i) => {
+    const [px, pz] = normals[(i + rim.length - 1) % rim.length];
+    const [nx, nz] = normals[i];
+    const offset = 0.28 / Math.max(0.25, 1 + px * nx + pz * nz);
+    return [x + (px + nx) * offset, z + (pz + nz) * offset];
+  });
+  const surfaces = [[], []];
+  const vertex = ([x, z], y) => [x, y, z];
+  for (const [i, a] of rim.entries()) {
+    const next = (i + 1) % rim.length;
+    const b = rim[next], c = inside[i], d = inside[next];
+    const triangles = surfaces[Math.floor(i / 2) % 2];
+    const quad = (p, q, r, s) => {
+      if (winding > 0) triangles.push(...p, ...q, ...r, ...p, ...r, ...s);
+      else triangles.push(...p, ...r, ...q, ...p, ...s, ...r);
+    };
+    quad(vertex(a, height), vertex(c, height), vertex(d, height), vertex(b, height));
+    quad(vertex(a, 0), vertex(a, height), vertex(b, height), vertex(b, 0));
+    quad(vertex(c, height), vertex(c, 0), vertex(d, 0), vertex(d, height));
+  }
+  for (const [i, positions] of surfaces.entries()) {
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geometry.computeVertexNormals();
+    const mesh = new THREE.Mesh(geometry, i ? materials.white : materials.black);
+    mesh.castShadow = mesh.receiveShadow = true;
+    lawn.add(mesh);
+  }
+}
+
 export function buildGateGarden(scene, kit) {
   const { map, materials: m, colliders } = kit;
   const zone = groupAt(scene, 'Zone A · Gate and Front Garden', [0, 0, 0]);
@@ -71,13 +113,14 @@ export function buildGateGarden(scene, kit) {
   disk.receiveShadow = true;
   lawn.add(disk);
   const curbHeight = 16 * 0.0254; // IMG_3141.JPG measures from paving to the top of the curb.
-  for (const [index, [x, z]] of rim.entries()) {
+  if (garden.points) buildSurveyCurb(lawn, rim, curbHeight, m);
+  else for (const [index, [x, z]] of rim.entries()) {
     const [nx, nz] = rim[(index + 1) % rim.length];
     const curb = box(lawn, index % 2 ? m.white : m.black,
       [Math.hypot(nx - x, nz - z) + 0.028, curbHeight, 0.28], [(x + nx) / 2, curbHeight / 2, (z + nz) / 2]);
     curb.rotation.y = -Math.atan2(nz - z, nx - x);
   }
-  if (!garden.points) {
+  if (!map.surveyTrees) {
     kit.flowerBed(zone, 7.5, 16.7, 3.3, 400, 52);
     kit.flowerBed(zone, 10.6, 21.1, 1.98, 525, 35);
     kit.flowerBed(zone, 0.6, 18.4, 1.68, 536, 25);

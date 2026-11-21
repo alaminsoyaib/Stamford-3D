@@ -5,12 +5,53 @@ export function westWingBounds({ width, depth, westWing }) {
   return { width: wingWidth, depth: wingDepth, x: -(width + wingWidth) / 2, z: (wingDepth - depth) / 2 };
 }
 
+export function rearLinkBounds({ width, depth, rearLink }) {
+  if (!rearLink) return null;
+  const linkWidth = width * rearLink.widthRatio;
+  const linkDepth = depth * rearLink.depthRatio;
+  return { width: linkWidth, depth: linkDepth, x: (width - linkWidth) / 2, z: -(depth + linkDepth) / 2 };
+}
+
+export function academicWingBounds(building) {
+  const { width, depth, academicWing } = building;
+  if (!academicWing) return null;
+  const wingWidth = depth * academicWing.widthRatio;
+  const wingDepth = width * academicWing.depthRatio;
+  const link = rearLinkBounds(building);
+  const halfLength = (depth + wingWidth) / 2;
+  return {
+    ...academicWing, label: 'Academic wing', width: wingWidth, depth: wingDepth, floors: building.floors,
+    ...(link
+      ? { x: width / 2 - link.width + wingDepth / 2, z: -halfLength - link.depth, yaw: -90 }
+      : { x: -(width + wingDepth) / 2, z: (wingWidth - depth) / 2, yaw: 90 })
+  };
+}
+
 export function buildingOutline(building) {
   const x = building.width / 2;
   const z = building.depth / 2;
-  const corners = [[-x, -z], [x, -z], [x, z], [-x, z]];
   const wing = westWingBounds(building);
-  if (wing) {
+  const link = rearLinkBounds(building);
+  const academic = academicWingBounds(building);
+  const corners = [[-x, -z]];
+  if (link) {
+    const left = x - link.width;
+    const end = -z - link.depth;
+    corners.push([left, -z]);
+    if (academic) {
+      const back = end - academic.width;
+      corners.push([left, back], [left + academic.depth, back], [left + academic.depth, end]);
+    } else corners.push([left, end]);
+    if (!academic || academic.depth !== link.width) corners.push([x, end]);
+  } else {
+    corners.push([x, -z]);
+  }
+  corners.push([x, z], [-x, z]);
+  if (academic && !link) {
+    const end = -z + academic.width;
+    if (end !== z) corners.push([-x, end]);
+    corners.push([-x - academic.depth, end], [-x - academic.depth, -z]);
+  } else if (wing) {
     corners.push([-x, -z + wing.depth], [-x - wing.width, -z + wing.depth], [-x - wing.width, -z]);
   }
   return corners;

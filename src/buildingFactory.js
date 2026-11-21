@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { createLayoutRegistry, rounded } from './campusLayout.js';
+import { academicWingBounds, rearLinkBounds, worldOutline } from './campusFootprints.js';
 import { batchStaticMeshes, box, canvasTexture, cylinder, groupAt, part, rod, seededRandom, unitPlane } from './sceneKit.js';
 
 const radians = THREE.MathUtils.degToRad;
@@ -9,9 +10,12 @@ const potGeometry = new THREE.CylinderGeometry(1, 0.71, 1, 11);
 const palmGeometry = makePalmFrond();
 const signMaterials = new Map();
 const facadeClearance = 0.15;
+const roofCopingOverhang = 0.09;
+const roofTrimOverhang = 0.2;
 export const maxBuildingFloors = 24;
 export const maxBuildingSpan = 150;
 export const academicStoryHeight = 3.15;
+export const officialStoryHeight = 3.3;
 const addedDoorWidth = 1.42;
 const addedDoorSpan = addedDoorWidth + 0.34;
 
@@ -143,14 +147,14 @@ function isDescendantOf(parent, child) {
   return false;
 }
 
-export function addLocalCollider(colliders, group, x, z, width, depth, oriented = false) {
+export function addLocalCollider(colliders, group, x, z, width, depth, oriented = false, top) {
   group.updateWorldMatrix(true, false);
   const lower = new THREE.Vector3(x - width / 2, 0, z - depth / 2);
   const upper = new THREE.Vector3(x + width / 2, 0, z + depth / 2);
   const bounds = new THREE.Box3(lower, upper).applyMatrix4(group.matrixWorld);
   const record = {
     minX: bounds.min.x, maxX: bounds.max.x, minZ: bounds.min.z, maxZ: bounds.max.z,
-    group, local: { x, z, width, depth }, oriented
+    group, local: { x, z, width, depth, top }, oriented
   };
   colliders.push(record);
   return record;
@@ -191,6 +195,17 @@ function fitGroundFixtures(fixtures, width) {
     left = center + span / 2 + facadeClearance;
     return { ...fixture, x: center, span };
   });
+}
+
+function facadeFixtures({ doors = [], windows = [] }) {
+  return [
+    ...doors.map((door) => ({ x: door.x, anchor: door.x, door, span: Math.max((door.width || 1.45) + 0.34, door.signWidth || 0) })),
+    ...windows.map((window) => ({ x: window.x, anchor: window.x, window, span: window.width + (window.counter ? 0.4 : 0.24) }))
+  ].sort((a, b) => a.x - b.x);
+}
+
+function fixtureRoom(fixtures) {
+  return fixtures.reduce((total, fixture) => total + fixture.span + facadeClearance, facadeClearance);
 }
 
 export function wayfinding(parent, materials, { x, z, title, subtitle, yaw = 0, width = 2.35 }) {
@@ -292,7 +307,7 @@ export function createCampusKit(map) {
   const themes = {
     guard: { wall: materials.white, trim: materials.blue, story: 2.8 },
     cse: { wall: materials.concrete, trim: materials.white, story: 3.06 },
-    official: { wall: materials.official, trim: materials.concrete, story: 3.3, recess: 1.14 },
+    official: { wall: materials.official, trim: materials.concrete, story: officialStoryHeight, recess: 1.14 },
     academic: { wall: materials.academic, trim: materials.white, story: academicStoryHeight, recess: 1.02 },
     civil: { wall: materials.civil, trim: materials.white, story: 3.25, recess: 0.83, bands: true },
     utility: { wall: materials.library, trim: materials.steel, story: 3.13 },
@@ -338,43 +353,57 @@ export function createCampusKit(map) {
     }
   }
 
-  function building(parent, id, style, options = {}) {
-    buildingModels.set(id, { style, options });
-    const spec = map.buildings[id];
-    const { wall: defaultWall, trim, story: defaultStory, recess = 0, bands = false } = themes[style];
+  function building(parent, id, style, options = {}, section = null) {
+    if (!section) buildingModels.set(id, { style, options });
+    const spec = section?.spec ?? map.buildings[id];
+    if (!spec) return null;
+    const { wall: defaultWall, trim: defaultTrim, story: defaultStory, recess = 0, bands = false } = themes[style];
     const wall = options.wall ?? defaultWall;
-    const story = options.story ?? defaultStory;
+    const trim = section?.trim ?? defaultTrim;
+    const story = section?.story ?? options.story ?? defaultStory;
     const root = groupAt(parent, spec.label, [spec.x, 0, spec.z], radians(spec.yaw));
-    const doors = options.doors ?? [];
-    const windows = options.windows ?? [];
-    const fixtures = [
-      ...doors.map((door) => ({ x: door.x, anchor: door.x, door, span: Math.max((door.width || 1.45) + 0.34, door.signWidth || 0) })),
-      ...windows.map((window) => ({ x: window.x, anchor: window.x, window, span: window.width + (window.counter ? 0.4 : 0.24) }))
-    ].sort((a, b) => a.x - b.x);
-    const minWidth = Math.max(2.6, options.minWidth ?? 0,
-      fixtures.reduce((total, fixture) => total + fixture.span + facadeClearance, facadeClearance));
-    const minDepth = Math.max(2.6, recess + 1.1);
+    const fixtures = facadeFixtures(options);
     const originalWidth = spec.facadeWidth ?? spec.width;
+    const model = { story, resize, wallSurfaces: section?.wallSurfaces ?? [] };
+    if (section) {
+      buildShell(spec.width, spec.depth, spec.floors, section.extraDoors);
+      return root;
+    }
     add(id, root, spec);
     const legacyScale = root.scale.clone();
     root.scale.setScalar(1);
     const entry = layout.objects.get(id);
-    const model = { story, resize, wallSurfaces: [] };
     entry.building = model;
-    spec.floors = Number.isFinite(spec.floors) ? spec.floors : 1;
+    const wingFixtures = options.academicWing ? facadeFixtures(options.academicWing) : [];
+    let initialFloors = (Number.isFinite(spec.floors) ? spec.floors : 1) * legacyScale.y;
+    if (options.rearFloorSetback && !(Number.isFinite(spec.rearFloorSetback)
+      && spec.rearFloorSetback > 0 && spec.rearFloorSetback < 1)) {
+      spec.rearFloorSetback = options.rearFloorSetback;
+      // Add the rear third floor to older two-storey Official Building plans.
+      if (Math.round(initialFloors) === 2) initialFloors = 3;
+    }
     delete spec.scale;
-    resize(spec.width * legacyScale.x, spec.depth * legacyScale.z, spec.floors * legacyScale.y);
+    resize(spec.width * legacyScale.x, spec.depth * legacyScale.z, initialFloors);
     return root;
 
     function resize(requestedWidth, requestedDepth, requestedFloors, rebuildDoors = false) {
       const extraDoors = Object.entries(map.elements ?? {}).filter(([doorId, element]) => element.type === 'door'
         && element.building === id && !parked.has(doorId));
       const doorRoom = (side) => extraDoors.filter(([, door]) => door.wall === side).length * (addedDoorSpan + facadeClearance);
-      const frontDoorRoom = fixtures.filter(({ door }) => door).reduce((total, fixture) => total + fixture.span + facadeClearance, 0);
-      const width = THREE.MathUtils.clamp(requestedWidth, Math.max(minWidth,
-        frontDoorRoom + doorRoom('front') + facadeClearance, doorRoom('back') + facadeClearance), maxBuildingSpan);
-      const depth = THREE.MathUtils.clamp(requestedDepth, Math.max(minDepth,
-        recess + Math.max(doorRoom('right'), doorRoom('left')) + facadeClearance), maxBuildingSpan);
+      let minWidth = Math.max(2.6, options.minWidth ?? 0, fixtureRoom(fixtures),
+        fixtureRoom(fixtures.filter(({ door }) => door)) + doorRoom('front'), doorRoom('back') + facadeClearance);
+      let minDepth = Math.max(2.6, recess + 1.1, recess + Math.max(doorRoom('right'), doorRoom('left')) + facadeClearance);
+      const wing = options.academicWing && spec.academicWing;
+      if (wing) {
+        const wingRecess = themes.academic.recess;
+        const wingWidth = Math.max(fixtureRoom(wingFixtures),
+          fixtureRoom(wingFixtures.filter(({ door }) => door)) + doorRoom('academic-front'), doorRoom('academic-back') + facadeClearance);
+        const wingDepth = Math.max(2.6, wingRecess + Math.max(doorRoom('academic-left'), doorRoom('academic-right')) + facadeClearance);
+        minWidth = Math.max(minWidth, wingDepth / wing.depthRatio);
+        minDepth = Math.max(minDepth, wingWidth / wing.widthRatio);
+      }
+      const width = THREE.MathUtils.clamp(requestedWidth, minWidth, maxBuildingSpan);
+      const depth = THREE.MathUtils.clamp(requestedDepth, minDepth, maxBuildingSpan);
       const floors = THREE.MathUtils.clamp(Math.round(requestedFloors), 1, maxBuildingFloors);
       const shape = [width, depth, floors].map((value) => Number(value.toFixed(4)));
       if (!rebuildDoors && model.shape?.every((value, index) => value === shape[index])) return false;
@@ -387,12 +416,23 @@ export function createCampusKit(map) {
       root.clear();
       model.wallSurfaces.length = 0;
       buildShell(spec.width, spec.depth, floors, extraDoors);
+      if (wing) {
+        building(root, id, 'academic', options.academicWing, {
+          spec: academicWingBounds(spec), wallSurfaces: model.wallSurfaces, extraDoors, story, trim
+        });
+      }
       batchStaticMeshes(root);
       return true;
     }
 
     function buildShell(width, depth, floors, extraDoors) {
-      const height = story * floors;
+      const endWidth = options.upperFloorStory && spec.upperEndWidthRatio > 0 && spec.upperEndWidthRatio <= 1
+        ? width * spec.upperEndWidthRatio : 0;
+      const setback = options.rearFloorSetback ? depth * spec.rearFloorSetback : 0;
+      const partialUpperFloor = (setback || endWidth) && floors > 1;
+      const frontFloors = partialUpperFloor ? floors - 1 : floors;
+      const height = story * frontFloors;
+      const lowerDepth = endWidth && frontFloors > 1 ? depth * (spec.lowerRoofDepthRatio ?? 0) : 0;
       const facade = depth / 2;
       const face = facade - recess;
       const groundFixtures = fitGroundFixtures(fixtures.map((fixture) => ({ ...fixture, x: fixture.x * width / originalWidth })), width);
@@ -404,8 +444,12 @@ export function createCampusKit(map) {
       ];
       const frontDoors = [];
       for (const surface of walls) {
-        model.wallSurfaces.push(surface);
-        const placed = extraDoors.filter(([, door]) => door.wall === surface.id);
+        const wallId = section ? `academic-${surface.id}` : surface.id;
+        if (section) {
+          const [[x, z]] = worldOutline([[surface.x, surface.z]], spec);
+          model.wallSurfaces.push({ ...surface, id: wallId, x, z, angle: surface.angle + radians(spec.yaw) });
+        } else model.wallSurfaces.push(surface);
+        const placed = extraDoors.filter(([, door]) => door.wall === wallId);
         const fixturesOnWall = surface.id === 'front' ? groundFixtures.filter(({ door }) => door) : [];
         if (!placed.length) {
           if (surface.id === 'front') frontDoors.push(...fixturesOnWall);
@@ -436,23 +480,65 @@ export function createCampusKit(map) {
       else {
         box(root, wall, [width, story, depth - recess], [0, story / 2, -recess / 2]);
         box(root, materials.black, [width + 0.025, 0.28, depth - recess + 0.04], [0, 0.14, -recess / 2]);
+        if (section) {
+          // Return the end wall across the recessed frontage where it meets the adjoining block.
+          const returnWidth = 0.38;
+          const x = (width - returnWidth) / 2;
+          const z = facade - recess / 2;
+          box(root, wall, [returnWidth, story, recess], [x, story / 2, z]);
+          box(root, materials.black, [returnWidth + 0.025, 0.28, recess], [x, 0.14, z + 0.02]);
+          addLocalCollider(colliders, root, x, z, returnWidth, recess, true, story);
+        }
       }
-      addLocalCollider(colliders, root, 0, -recess / 2, width, depth - recess, Boolean(map.surveyTrees));
-      if (floors > 1) box(root, wall, [width, height - story, depth], [0, (height + story) / 2, 0]);
-      if (options.exterior) options.exterior({ root, width, depth, floors, story, height, facade, recess });
-      else if (options.roof) options.roof({ root, width, depth, story, height, facade });
-      else {
-        box(root, trim, [width + 0.42, 0.22, depth + 0.4], [0, height + 0.08, 0]);
-        box(root, wall, [width + 0.18, 0.37, depth + 0.18], [0, height + 0.35, 0]);
+      const lowerTop = partialUpperFloor ? (lowerDepth ? story : height) + 0.535 : undefined;
+      addLocalCollider(colliders, root, 0, -recess / 2, width, depth - recess, Boolean(partialUpperFloor || map.surveyTrees), lowerTop);
+      if (lowerDepth) {
+        buildAcademicStep(width, depth, endWidth, lowerDepth, frontFloors);
+      } else {
+        if (frontFloors > 1) box(root, wall, [width, height - story, depth], [0, (height + story) / 2, 0]);
+        if (options.exterior) options.exterior({ root, width, depth, floors, story, height, facade, recess });
+        else if (options.roof) options.roof({ root, width, depth, story, height, facade });
+        else if (partialUpperFloor && setback) {
+          const frontRoof = groupAt(root, 'Official frontage roof', [0, 0, (depth - setback) / 2]);
+          flatRoof(frontRoof, width, setback, height);
+        } else flatRoof(root, width, depth, height);
+      }
+
+      if (partialUpperFloor) {
+        const upperWidth = endWidth || width;
+        const upperDepth = depth - setback;
+        const x = (width - upperWidth) / 2;
+        const z = (upperDepth - depth) / 2;
+        const upperHeight = (section?.story ?? options.upperFloorStory ?? story) * floors;
+        const rise = upperHeight - height;
+        const upper = groupAt(root, 'Setback upper floor', [x, height, z]);
+        const upperWall = options.upperFloorWall ?? wall;
+        box(upper, upperWall, [upperWidth, rise, upperDepth], [0, rise / 2, 0]);
+        flatRoof(upper, upperWidth, upperDepth, rise, upperWall);
+        upperWindows(upper, upperWidth, upperDepth, 0, 1, { storey: rise });
+        addLocalCollider(colliders, root, x, z, upperWidth, upperDepth, true, upperHeight + 0.535);
+      }
+
+      const link = rearLinkBounds(spec);
+      if (link) {
+        const { x, z, width: linkWidth, depth: linkDepth } = link;
+        const fullHeight = story * floors;
+        const connector = groupAt(root, 'Academic Building connection', [x, 0, z]);
+        box(connector, wall, [linkWidth, fullHeight, linkDepth], [0, fullHeight / 2, 0]);
+        flatRoof(connector, linkWidth, linkDepth, fullHeight);
+        upperWindows(connector, linkWidth, linkDepth, 1, floors);
+        addLocalCollider(colliders, connector, 0, 0, linkWidth, linkDepth, true, fullHeight + 0.535);
       }
       if (recess) {
         const columns = Math.ceil(width / 4);
-        for (let i = 0; i <= columns; i++) {
+        const count = section ? columns : columns + 1;
+        for (let i = 0; i < count; i++) {
           const px = -width / 2 + 0.25 + (width - 0.5) * i / columns;
           if (frontDoors.some((door) => Math.abs(door.x - px) < door.span / 2 + 0.35)) continue;
           box(root, trim, [0.38, story, 0.42], [px, story / 2, facade - 0.15]);
           box(root, materials.concrete, [0.55, 0.16, 0.57], [px, 0.08, facade - 0.15]);
-          addLocalCollider(colliders, root, px, facade - 0.15, 0.42, 0.48);
+          addLocalCollider(colliders, root, px, facade - 0.15, 0.42, 0.48, false,
+            lowerDepth ? height + 0.535 : lowerTop);
         }
       }
       if (options.awning) {
@@ -478,35 +564,72 @@ export function createCampusKit(map) {
         });
         panel.scale.x = Math.min(panel.scale.x, width - 0.1);
       }
-      if (!options.exterior && floors > 1) {
-        for (const [sideWidth, offset, angle] of [
-          [width, [0, 0, facade], 0], [depth, [width / 2, 0, 0], Math.PI / 2],
-          [width, [0, 0, -facade], Math.PI], [depth, [-width / 2, 0, 0], -Math.PI / 2]
-        ]) {
-          const side = groupAt(root, 'Exterior elevation', offset, angle);
-          const paneWidth = bands ? 2.48 : 2.16;
-          const bays = Math.max(1, Math.min(Math.round(sideWidth / (bands ? 3.3 : 3.05)),
-            Math.floor((sideWidth - 0.4) / (paneWidth + 0.36))));
-          const pitch = (sideWidth - 0.4) / bays;
-          for (let level = 1; level < floors; level++) {
-            const y = story * (level + 0.5);
-            box(side, trim, [sideWidth, 0.15, 0.22], [0, level * story + 0.02, 0.05]);
-            for (let col = 0; col < bays; col++) {
-              const px = pitch * (col - (bays - 1) / 2);
-              if (bands && col === Math.floor(bays / 2)) {
-                box(side, materials.lattice, [pitch * 0.65, story - 0.15, 0.085], [px, y, 0.045]);
-              }
-              windowAt(side, px, y + 0.1, 0.09, paneWidth, 1.25, trim,
-                (col + level) % 3 === 0 ? materials.shadeGlass : materials.glass);
-            }
-          }
-        }
-      }
+      if (!options.exterior && !lowerDepth && frontFloors > 1) upperWindows(root, width, depth, 1, frontFloors);
       if (options.details) {
         const placeX = (x) => THREE.MathUtils.clamp(x * width / originalWidth, -width / 2 + 0.15, width / 2 - 0.15);
         const fixtureX = (x) => frontDoors.find(({ anchor }) => anchor === x)?.x
           ?? groundFixtures.find(({ anchor }) => anchor === x)?.x ?? placeX(x);
-        options.details({ root, face, facade, width, depth, height, spec, placeX, fixtureX });
+        options.details({ root, face, facade, width, depth, height, frontFloors, spec, placeX, fixtureX });
+      }
+    }
+
+    function buildAcademicStep(width, depth, endWidth, lowerDepth, frontFloors) {
+      const frontDepth = depth - lowerDepth;
+      const restWidth = width - endWidth;
+      const height = story * frontFloors;
+      const wallHeight = height - story;
+      const wallY = (height + story) / 2;
+      const backZ = (lowerDepth - depth) / 2;
+      const rearRoof = groupAt(root, 'One-storey Academic roof', [-endWidth / 2, 0, backZ]);
+      const lowerRoofY = flatRoof(rearRoof, restWidth, lowerDepth, story);
+
+      const front = groupAt(root, 'Academic frontage', [0, 0, lowerDepth / 2]);
+      box(front, wall, [width, wallHeight, frontDepth], [0, wallY, 0]);
+      const frontRoof = groupAt(front, 'Academic frontage roof', [-endWidth / 2, 0, 0]);
+      const frontRoofY = flatRoof(frontRoof, restWidth, frontDepth, height);
+      upperWindows(front, width, frontDepth, 1, frontFloors, { blankSide: 'back' });
+
+      const end = groupAt(root, 'Academic end bay', [restWidth / 2, 0, backZ]);
+      box(end, wall, [endWidth, wallHeight, lowerDepth], [0, wallY, 0]);
+      upperWindows(end, endWidth, lowerDepth, 1, frontFloors, { blankSide: 'left' });
+      addLocalCollider(colliders, root, 0, (lowerDepth - recess) / 2, width, frontDepth - recess, true, height + 0.535);
+      if (section && options.stairs) options.stairs({
+        root, width, depth, endWidth, lowerDepth, lowerRoofY, roofOverhang: roofCopingOverhang,
+        trimOverhang: roofTrimOverhang, upperLandingY: Math.min(frontRoofY, lowerRoofY + story),
+        opensToUpperRoof: frontFloors === 2, sideApproach: spec.yaw === -90
+      });
+    }
+
+    function flatRoof(parent, width, depth, height, coping = wall) {
+      box(parent, trim, [width + 0.42, 0.22, depth + roofTrimOverhang * 2], [0, height + 0.08, 0]);
+      box(parent, coping, [width + roofCopingOverhang * 2, 0.37, depth + roofCopingOverhang * 2], [0, height + 0.35, 0]);
+      return height + 0.535;
+    }
+
+    function upperWindows(parent, width, depth, firstLevel, floors, { storey = story, blankSide } = {}) {
+      const facade = depth / 2;
+      for (const [name, sideWidth, offset, angle] of [
+        ['front', width, [0, 0, facade], 0], ['right', depth, [width / 2, 0, 0], Math.PI / 2],
+        ['back', width, [0, 0, -facade], Math.PI], ['left', depth, [-width / 2, 0, 0], -Math.PI / 2]
+      ]) {
+        const side = groupAt(parent, 'Exterior elevation', offset, angle);
+        const paneWidth = Math.min(bands ? 2.48 : 2.16, Math.max(0.25, sideWidth - 0.4));
+        const bays = Math.max(1, Math.min(Math.round(sideWidth / (bands ? 3.3 : 3.05)),
+          Math.floor((sideWidth - 0.4) / (paneWidth + 0.36))));
+        const pitch = (sideWidth - 0.4) / bays;
+        for (let level = firstLevel; level < floors; level++) {
+          const y = storey * (level + 0.5);
+          box(side, trim, [sideWidth, 0.15, 0.22], [0, level * storey + 0.02, 0.05]);
+          if (name === blankSide) continue;
+          for (let col = 0; col < bays; col++) {
+            const px = pitch * (col - (bays - 1) / 2);
+            if (bands && col === Math.floor(bays / 2)) {
+              box(side, materials.lattice, [pitch * 0.65, storey - 0.15, 0.085], [px, y, 0.045]);
+            }
+            windowAt(side, px, y + 0.1, 0.09, paneWidth, 1.25, trim,
+              (col + level) % 3 === 0 ? materials.shadeGlass : materials.glass);
+          }
+        }
       }
     }
   }

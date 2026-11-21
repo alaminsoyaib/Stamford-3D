@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { addLocalCollider, floor, sign, standard } from './buildingFactory.js';
+import { academicBuildingOptions } from './academicBuilding.js';
 import { worldOutline } from './campusFootprints.js';
 import { batchStaticMeshes, box, createPortal, cylinder, groupAt, part, rod } from './sceneKit.js';
 
@@ -252,16 +253,7 @@ export function buildGroundPool(scene, kit) {
   const m = kit.materials;
   const zone = groupAt(scene, 'Zone D · Central Ground and Swimming Pool', [0, 0, 0]);
   buildGroundDetails(zone, kit);
-  kit.building(zone, 'academic', 'academic', {
-    title: 'ACADEMIC BUILDING', subtitle: 'GROUND ELEVATION', signWidth: 7.2,
-    doors: [
-      { x: -9.67, title: 'Academic Gate 02', width: 2.51, signWidth: 3.36, glass: true },
-      { x: -3.46, title: 'Medical Center', subtitle: 'A-118  •  DOCTOR & PARAMEDIC', width: 1.65, signWidth: 2.89, cross: true, signColor: '#713936' },
-      { x: 2.05, title: 'Student Welfare', subtitle: 'STUDENT SUPPORT OFFICE', width: 1.68, signWidth: 2.6, glass: true },
-      { x: 8.19, title: 'Auditorium', width: 2.13, signWidth: 2.49, glass: true }
-    ],
-    windows: [{ x: -6.4, width: 1.46 }, { x: -0.56, width: 1.49 }, { x: 5.01, width: 1.65 }, { x: 11.48, width: 1.4 }]
-  });
+  kit.building(zone, 'academic', 'academic', academicBuildingOptions(kit));
   kit.building(zone, 'civil', 'civil', {
     title: 'CIVIL BUILDING', subtitle: 'DEPARTMENT OF CIVIL ENGINEERING',
     doors: [{ x: 2.13, title: 'Civil Engineering', width: 2.6, glass: true }],
