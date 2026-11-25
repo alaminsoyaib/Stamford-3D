@@ -140,16 +140,17 @@ export function createGateRoomModels({ materials, colliders }) {
     corrugatedSheet(group, graySheet, nookWidth + 0.04, edge - rear + 0.1, 0, edge, crest, 0.12);
     box(group, materials.concrete, [nookWidth, 0.04, edge - rear], [0, 0.02, (edge + rear) / 2]);
     box(group, backing, [nookWidth, crest, 0.11], [0, crest / 2, rear]);
-    addLocalCollider(colliders, root, x, rear, nookWidth, 0.11);
+    addLocalCollider(colliders, root, x, rear, nookWidth, 0.16, true, crest, 0);
     for (const z of [rear + 0.09, facade - 0.92, facade + 0.02]) {
       rod(group, steel, [-nookWidth / 2, crest - 0.08, z], [nookWidth / 2, crest - 0.08, z], 0.025);
     }
     const postX = -nookWidth / 2 + 0.05;
     rod(group, steel, [postX, 0, facade + 0.02], [postX, crest - 0.07, facade + 0.02], 0.031);
-    addLocalCollider(colliders, root, x + postX, facade + 0.02, 0.062, 0.062);
+    addLocalCollider(colliders, root, x + postX, facade + 0.02, 0.12, 0.12, true, crest, 0);
     box(group, materials.wood, [0.94, 0.05, 0.62], [0.52, 0.78, facade - 0.31]);
     box(group, materials.wood, [0.86, 0.67, 0.49], [0.52, 0.39, facade - 0.31]);
-    addLocalCollider(colliders, root, x + 0.52, facade - 0.31, 0.94, 0.62);
+    addLocalCollider(colliders, root, x + 0.52, facade - 0.31, 0.94, 0.62, true, 0.82, 0);
+    addLocalCollider(colliders, root, x, (edge + rear) / 2, nookWidth + 0.04, edge - rear + 0.1, true, crest + 0.14, crest - 0.12);
   }
 
   function meterCage(front, x) {
@@ -172,6 +173,7 @@ export function createGateRoomModels({ materials, colliders }) {
   const room = (guardian) => ({
     wall: plaster,
     minWidth: guardian ? 2.9 : 4.3,
+    roofTop: ({ story, height }) => height - story + measuredEave - (guardian ? 0.14 : 0) + 0.14,
     groundExterior({ root, width, depth, story, facade }) {
       const front = groupAt(root, guardian ? 'Guardian room frontage' : 'Guard room frontage', [0, 0, facade]);
       const sideInset = guardian ? 0 : wallThickness;
@@ -216,8 +218,10 @@ export function createGateRoomModels({ materials, colliders }) {
       const eave = facade + (guardian ? 0.37 : 0.78);
       const crest = height - story + measuredEave - (guardian ? 0.14 : 0);
       const overhang = guardian ? 0.06 : 0.19;
-      corrugatedSheet(root, guardian ? graySheet : blueSheet, width + overhang * 2, depth + eave - facade + 0.13,
+      const sheetDepth = depth + eave - facade + 0.13;
+      corrugatedSheet(root, guardian ? graySheet : blueSheet, width + overhang * 2, sheetDepth,
         0, eave, crest, 0.13);
+      addLocalCollider(colliders, root, 0, eave - sheetDepth / 2, width + overhang * 2, sheetDepth, true, crest + 0.14, crest - 0.14);
       box(root, guardian ? steel : fascia, [width + 0.035, guardian ? 0.14 : 0.26, 0.16],
         [0, height + (guardian ? 0.062 : 0.121), facade + 0.012]);
       const frontRailY = crest - ribHeight * 2 - 0.026;

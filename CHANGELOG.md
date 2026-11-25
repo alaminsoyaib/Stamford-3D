@@ -6,6 +6,7 @@ Record completed changes here, with verification when it helps a future handoff.
 
 ### Added
 
+- Extracted pure 3D collision and boundary-resolution physics into `src/campusCollision.js` with oriented bounding-box (OBB) depenetration in `src/campusFootprints.js`, plus unit tests in `tests/campusCollision.test.js`.
 - Improved briefing controls loading UX on Campus and Ocean landing pages:
   - Replaced the disabled/grayed-out "Enter campus" and "Begin descent" buttons during scene initialization with the dedicated loading status text ("Building the campus scene…").
   - Hid the button while loading (`hidden` attribute, `[data-ready="false"] .briefing-buttons`, and `.primary:disabled { display: none; }`), preventing layout shifts that previously pushed the button upward while loading.
@@ -43,6 +44,13 @@ Record completed changes here, with verification when it helps a future handoff.
 
 ### Changed
 
+- Fixed 3D building clipping, over-wall drone flight, perimeter wall sticking, and layout editor bugs:
+  - Fixed vertical roof descent in `src/mainCampus.js` (`resolveVerticalMove`) so drones land cleanly on building roofs and perimeter walls instead of bypassing colliders above `1.7 m` and dropping inside hollow buildings or wall strips.
+  - Made all building, gate, canopy, shelter, bus, and monument colliders 3D altitude-aware (`[bottom, top]`) and oriented (`oriented = true`) by default across `src/buildingFactory.js`, `src/cseExterior.js`, `src/zoneA_GateGarden.js`, `src/zoneB_CSEAdmission.js`, `src/zoneC_GroundPool.js`, `src/gateRooms.js`, `src/campusBus.js`, and `src/cseMonument.js` — sealing overhanging upper floors on recessed buildings (Civil, Official, Academic wing), CSE roof fascia, entry/pool gate beams, and eaves.
+  - Enabled altitude-aware perimeter wall flight (`wallTop`: `3.08 m` street, `2.67 m` side/rear) so drones fly freely over campus walls without depending on the gate while keeping outer world boundary clamping intact.
+  - Replaced axis-only collision sliding with an iterative OBB/segment push-out solver and anti-tunneling guard (`resolveHorizontalMove`), preventing drones from getting trapped inside diagonal walls or corners; kept `bounds.walls = []` distinct from legacy polygons so deleted walls do not leave invisible barriers.
+  - Fixed pool basin edge clamping and post-exit altitude enforcement, restored `ArrowLeft`/`ArrowRight` and `Shift+Q`/`Shift+E` campus strafe controls, reset altitude to `1.7 m` on `exitCampus()`, and prevented paused canvas clicks from triggering upward thrust (`src/sceneRuntime.js`).
+  - Fixed `endPointer()` in `src/campusEditor.js` so dragging objects commits transforms, updates colliders/saves, records undo history, and supports deck drop-to-store; preserved street wall heights and collinear snapping when slicing walls.
 - Shifted the Academic wing's upper exterior stair flight slightly to the left of the two-storey frontage wall (`src/academicStairs.js`, `src/buildingFactory.js`) so the treads, right stringer, railing, and support post clear the white roof trim overhang, while bridging the open upper landing deck flush to the roof coping. Verified syntax, unit tests, and stair-to-trim clearance in Node.
 - Replaced the stair wrapping around the CSE wall with two exterior flights at the Academic wing. Checked the roof contacts, surveyed passage clearance, and stair rebuilds in Node.
 - Removed the windows from the two Academic wing walls facing the one-storey roof. Verified both wall faces and the courtyard-side glazing in Node.

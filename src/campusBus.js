@@ -178,6 +178,6 @@ export function buildCampusBus(parent, { x, z, yaw = 0, width = 2.89, depth = 8.
     box(end, darkBlue, [bodyWidth + 0.02, 0.16, 0.09], [0, 0.37, 0.004]);
     box(end, aluminum, [0.39, 0.112, 0.023], [0, 0.52, 0.025]);
   }
-  addLocalCollider(colliders, root, 0, 0, width, depth);
+  addLocalCollider(colliders, root, 0, 0, width, depth, true, roofHeight, 0);
   return root;
 }

@@ -147,14 +147,14 @@ function isDescendantOf(parent, child) {
   return false;
 }
 
-export function addLocalCollider(colliders, group, x, z, width, depth, oriented = false, top) {
+export function addLocalCollider(colliders, group, x, z, width, depth, oriented = true, top, bottom = 0) {
   group.updateWorldMatrix(true, false);
   const lower = new THREE.Vector3(x - width / 2, 0, z - depth / 2);
   const upper = new THREE.Vector3(x + width / 2, 0, z + depth / 2);
   const bounds = new THREE.Box3(lower, upper).applyMatrix4(group.matrixWorld);
   const record = {
     minX: bounds.min.x, maxX: bounds.max.x, minZ: bounds.min.z, maxZ: bounds.max.z,
-    group, local: { x, z, width, depth, top }, oriented
+    group, local: { x, z, width, depth, top, bottom }, oriented
   };
   colliders.push(record);
   return record;
@@ -490,8 +490,18 @@ export function createCampusKit(map) {
           addLocalCollider(colliders, root, x, z, returnWidth, recess, true, story);
         }
       }
-      const lowerTop = partialUpperFloor ? (lowerDepth ? story : height) + 0.535 : undefined;
-      addLocalCollider(colliders, root, 0, -recess / 2, width, depth - recess, Boolean(partialUpperFloor || map.surveyTrees), lowerTop);
+      const pad = options.facadePad ?? 0;
+      const coreTop = partialUpperFloor
+        ? (lowerDepth ? story : height) + 0.535
+        : options.roofTop
+          ? options.roofTop({ story, height, floors })
+          : options.roof
+            ? undefined
+            : height + 0.535;
+      addLocalCollider(colliders, root, 0, -recess / 2, width + pad * 2, depth - recess + pad * 2, true, coreTop, 0);
+      if (recess > 0 && frontFloors > 1 && !lowerDepth) {
+        addLocalCollider(colliders, root, 0, 0, width + pad * 2, depth + pad * 2, true, height + 0.535, story);
+      }
       if (lowerDepth) {
         buildAcademicStep(width, depth, endWidth, lowerDepth, frontFloors);
       } else {
@@ -516,7 +526,7 @@ export function createCampusKit(map) {
         box(upper, upperWall, [upperWidth, rise, upperDepth], [0, rise / 2, 0]);
         flatRoof(upper, upperWidth, upperDepth, rise, upperWall);
         upperWindows(upper, upperWidth, upperDepth, 0, 1, { storey: rise });
-        addLocalCollider(colliders, root, x, z, upperWidth, upperDepth, true, upperHeight + 0.535);
+        addLocalCollider(colliders, root, x, z, upperWidth, upperDepth, true, upperHeight + 0.535, endWidth ? story : height);
       }
 
       const link = rearLinkBounds(spec);
@@ -527,7 +537,7 @@ export function createCampusKit(map) {
         box(connector, wall, [linkWidth, fullHeight, linkDepth], [0, fullHeight / 2, 0]);
         flatRoof(connector, linkWidth, linkDepth, fullHeight);
         upperWindows(connector, linkWidth, linkDepth, 1, floors);
-        addLocalCollider(colliders, connector, 0, 0, linkWidth, linkDepth, true, fullHeight + 0.535);
+        addLocalCollider(colliders, connector, 0, 0, linkWidth, linkDepth, true, fullHeight + 0.535, 0);
       }
       if (recess) {
         const columns = Math.ceil(width / 4);
@@ -537,8 +547,7 @@ export function createCampusKit(map) {
           if (frontDoors.some((door) => Math.abs(door.x - px) < door.span / 2 + 0.35)) continue;
           box(root, trim, [0.38, story, 0.42], [px, story / 2, facade - 0.15]);
           box(root, materials.concrete, [0.55, 0.16, 0.57], [px, 0.08, facade - 0.15]);
-          addLocalCollider(colliders, root, px, facade - 0.15, 0.42, 0.48, false,
-            lowerDepth ? height + 0.535 : lowerTop);
+          addLocalCollider(colliders, root, px, facade - 0.15, 0.42, 0.48, true, story, 0);
         }
       }
       if (options.awning) {
@@ -546,6 +555,7 @@ export function createCampusKit(map) {
         canopy.rotation.x = 0.1;
         for (const side of [-1, 1]) rod(root, materials.steel, [side * width * 0.42, story - 0.85, facade],
           [side * width * 0.42, story - 0.37, facade + 1.04], 0.037);
+        addLocalCollider(colliders, root, 0, facade + 0.55, width + 0.42, 1.27, true, story - 0.22, story - 0.45);
       }
       for (const { x, door } of frontDoors) {
         if (door) entrance(root, { ...door, x }, face, trim);
@@ -592,7 +602,7 @@ export function createCampusKit(map) {
       const end = groupAt(root, 'Academic end bay', [restWidth / 2, 0, backZ]);
       box(end, wall, [endWidth, wallHeight, lowerDepth], [0, wallY, 0]);
       upperWindows(end, endWidth, lowerDepth, 1, frontFloors, { blankSide: 'left' });
-      addLocalCollider(colliders, root, 0, (lowerDepth - recess) / 2, width, frontDepth - recess, true, height + 0.535);
+      addLocalCollider(colliders, root, 0, lowerDepth / 2, width, frontDepth, true, height + 0.535, story);
       if (section && options.stairs) options.stairs({
         root, width, depth, endWidth, lowerDepth, lowerRoofY, roofOverhang: roofCopingOverhang,
         trimOverhang: roofTrimOverhang, upperLandingY: Math.min(frontRoofY, lowerRoofY + story),
@@ -793,10 +803,30 @@ export function createCampusKit(map) {
     (template.root.parent ?? parent).add(root);
     const { surface, elevation } = template;
     add(id, root, spec, { surface, elevation });
+    function mapClonedGroup(sourceGroup) {
+      if (sourceGroup === template.root) return root;
+      const path = [];
+      let cur = sourceGroup;
+      while (cur && cur !== template.root) {
+        const parentNode = cur.parent;
+        if (!parentNode) return null;
+        path.push(parentNode.children.indexOf(cur));
+        cur = parentNode;
+      }
+      if (cur !== template.root) return null;
+      let target = root;
+      for (let i = path.length - 1; i >= 0; i--) {
+        target = target?.children[path[i]];
+        if (!target) return null;
+      }
+      return target;
+    }
     for (const record of colliders.slice()) {
-      if (record.group === template.root) {
-        const { x, z, width, depth } = record.local;
-        addLocalCollider(colliders, root, x, z, width, depth);
+      if (isDescendantOf(template.root, record.group)) {
+        const clonedGroup = mapClonedGroup(record.group);
+        if (!clonedGroup) continue;
+        const { x, z, width, depth, top, bottom } = record.local;
+        addLocalCollider(colliders, clonedGroup, x, z, width, depth, record.oriented, top, bottom);
       }
     }
     return layout.objects.get(id);

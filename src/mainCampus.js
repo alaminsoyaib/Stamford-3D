@@ -2,8 +2,8 @@ import * as THREE from 'three';
 import { addLocalCollider, createCampusKit, floor, standard } from './buildingFactory.js';
 import { createCampusEditor } from './campusEditor.js';
 import { createDroneAudio } from './campusDroneAudio.js';
-import { touchesCollider } from './campusFootprints.js';
-import { campusGatePose, closestOnEdge, insideLand, landExtent, nearestLandEdge, perimeterWalls } from './campusBoundary.js';
+import { PLAYER_RADIUS, blockedAt, resolveHorizontalMove, resolveVerticalMove } from './campusCollision.js';
+import { campusGatePose, insideLand, landExtent, nearestLandEdge, perimeterWalls } from './campusBoundary.js';
 import { renderCampusHero } from './campusHero.js';
 import { createPoolOpening, movePoolDependencies, readCampusLayout } from './campusLayout.js';
 import { batchStaticMeshes, box, canvasTexture, createSceneryBatches, groupAt, seededRandom } from './sceneKit.js';
@@ -13,7 +13,6 @@ import { createWeather } from './weatherAndLighting.js';
 import { buildCSEAdmission } from './zoneB_CSEAdmission.js';
 import { buildGroundPool } from './zoneC_GroundPool.js';
 
-const playerRadius = 0.29;
 const walkingSpeed = 9.0;
 const walkingBoost = 1.9;
 const droneCeiling = 80;
@@ -165,33 +164,6 @@ function createLandSurface(scene, site, map, opening, materials, kit) {
   };
 }
 
-function blocked(x, z, colliders, bounds) {
-  if (bounds.walls && bounds.walls.length) {
-    for (const seg of bounds.walls) {
-      const [edgeX, edgeZ] = closestOnEdge(x, z, seg.a, seg.b);
-      const distSq = (edgeX - x) ** 2 + (edgeZ - z) ** 2;
-      if (distSq < (playerRadius + 0.22) ** 2) return true;
-    }
-  } else {
-    const wallInset = bounds.points ? 0.32 : 0;
-    if (!insideLand(bounds, x, z, playerRadius + wallInset, true)) return true;
-  }
-  const { minX, maxX, minZ, maxZ, streetZ } = landExtent(bounds);
-  if (x < minX - 35 || x > maxX + 35 || z < minZ - 35 || z > (streetZ || maxZ) + 40) return true;
-  return colliders.some((obstacle) => touchesCollider(x, z, playerRadius, obstacle));
-}
-
-function walkWithCollision(position, dx, dz, colliders, bounds) {
-  const steps = Math.max(1, Math.ceil(Math.hypot(dx, dz) / 0.16));
-  const stepX = dx / steps;
-  const stepZ = dz / steps;
-  for (let index = 0; index < steps; index++) {
-    // Resolve the axes independently to slide along walls and substep to catch thin gates.
-    if (stepX && !blocked(position.x + stepX, position.z, colliders, bounds)) position.x += stepX;
-    if (stepZ && !blocked(position.x, position.z + stepZ, colliders, bounds)) position.z += stepZ;
-  }
-}
-
 export async function startCampus() {
   const response = await fetch(new URL('../CAMPUS_MAP.json', import.meta.url));
   if (!response.ok) throw new Error(`Campus map request failed (${response.status})`);
@@ -298,33 +270,35 @@ export async function startCampus() {
     plotMap(camera.position, heading, stop);
   }
 
-  function walkableNear(x, z) {
+  function walkableNear(x, z, y = eyeHeight) {
     const bounds = map.boundary;
     const span = landExtent(bounds);
-    x = THREE.MathUtils.clamp(x, span.minX + playerRadius, span.maxX - playerRadius);
-    z = THREE.MathUtils.clamp(z, span.minZ + playerRadius, span.streetZ - playerRadius);
-    if (!blocked(x, z, kit.colliders, bounds)) return [x, z];
-    if (bounds.points && !insideLand(bounds, x, z)) [x, z] = nearestLandEdge(bounds.points, x, z);
+    x = THREE.MathUtils.clamp(x, span.minX + PLAYER_RADIUS, span.maxX - PLAYER_RADIUS);
+    z = THREE.MathUtils.clamp(z, span.minZ + PLAYER_RADIUS, span.streetZ - PLAYER_RADIUS);
+    if (!blockedAt(x, z, y, kit.colliders, bounds, obstacleRawTop)) return [x, z];
+    if (bounds.points && !Array.isArray(bounds.walls) && !insideLand(bounds, x, z)) {
+      [x, z] = nearestLandEdge(bounds.points, x, z);
+    }
     const maxRadius = Math.max(12, Math.hypot(span.maxX - span.minX, span.streetZ - span.minZ));
     for (let radius = 0.4; radius < maxRadius; radius += radius < 4 ? 0.4 : 1) {
       for (let index = 0; index < 24; index++) {
         const angle = index * Math.PI / 12;
         const px = x + radius * Math.cos(angle);
         const pz = z + radius * Math.sin(angle);
-        if (!blocked(px, pz, kit.colliders, bounds)) return [px, pz];
+        if (!blockedAt(px, pz, y, kit.colliders, bounds, obstacleRawTop)) return [px, pz];
       }
     }
     return null;
   }
 
-  function teleport(stop) {
-    const position = walkableNear(stop.position[0], stop.position[2]);
+  function teleport(stop, { resetAltitude = false } = {}) {
+    const currentY = camera.position.y;
+    const altitude = resetAltitude || currentY <= 0 ? (stop.position[1] ?? eyeHeight) : Math.max(eyeHeight, currentY);
+    const position = walkableNear(stop.position[0], stop.position[2], altitude);
     if (!position) {
       runtime.announce('This layout blocks the checkpoint. Move objects to clear a path.');
       return;
     }
-    const currentY = camera.position.y;
-    const altitude = currentY > 0 ? currentY : eyeHeight;
     camera.position.set(position[0], altitude, position[1]);
     camera.lookAt(...stop.lookAt);
     activeStop = stop.key;
@@ -332,10 +306,10 @@ export async function startCampus() {
   }
   const fromOcean = new URLSearchParams(location.search).get('arrival') === 'pool';
   if (fromOcean) document.body.dataset.briefing = 'compact';
-  teleport(map.stops[fromOcean && kit.layout.objects.has('pool') ? 3 : 0]);
+  teleport(map.stops[fromOcean && kit.layout.objects.has('pool') ? 3 : 0], { resetAltitude: true });
   addEventListener('pageshow', (event) => {
     if (event.persisted && opening.local(camera.position, poolLocal).y < pool.waterY) {
-      teleport(map.stops[kit.layout.objects.has('pool') ? 3 : 0]);
+      teleport(map.stops[kit.layout.objects.has('pool') ? 3 : 0], { resetAltitude: true });
     }
   });
 
@@ -358,11 +332,20 @@ export async function startCampus() {
       teleport(map.stops.find(({ key }) => key === activeStop));
       return;
     }
-    const { x, z } = camera.position;
-    if (blocked(x, z, kit.colliders, map.boundary)) {
-      const safe = walkableNear(x, z);
-      if (safe) camera.position.set(safe[0], camera.position.y > 0 ? camera.position.y : eyeHeight, safe[1]);
-      else runtime.announce('This layout blocks the campus. Open the editor to clear a path.');
+    const { x, y, z } = camera.position;
+    const altitude = y > 0 ? y : eyeHeight;
+    if (blockedAt(x, z, altitude, kit.colliders, map.boundary, obstacleRawTop)) {
+      const safe = walkableNear(x, z, altitude);
+      if (safe) {
+        camera.position.set(safe[0], altitude, safe[1]);
+      } else {
+        const lifted = resolveVerticalMove(x, z, droneCeiling, altitude, kit.colliders, map.boundary, obstacleRawTop);
+        if (!blockedAt(x, z, lifted, kit.colliders, map.boundary, obstacleRawTop)) {
+          camera.position.set(x, lifted, z);
+        } else {
+          runtime.announce('This layout blocks the campus. Open the editor to clear a path.');
+        }
+      }
     }
     updateHud();
   }
@@ -406,21 +389,23 @@ export async function startCampus() {
     if (!droneAudio.muted) droneAudio.start();
   });
 
-  function obstacleTop({ group, local }) {
+  function obstacleRawTop({ group, local }) {
     if (local?.top !== undefined) {
       // Stepped roofs share a building root but have different local heights.
       const matrix = group.matrixWorld.elements;
-      return matrix[13] + local.top * matrix[5] + playerRadius;
+      return matrix[13] + local.top * matrix[5];
     }
     if (!obstacleTops.has(group)) {
-      obstacleTops.set(group, obstacleBounds.setFromObject(group).max.y + playerRadius);
+      obstacleTops.set(group, obstacleBounds.setFromObject(group).max.y);
     }
     return obstacleTops.get(group);
   }
 
   function fly(dt, boosted) {
     if (dt <= 0) return;
-    const x = Number(runtime.down('KeyD')) - Number(runtime.down('KeyA'));
+    const moveRight = runtime.down('KeyD', 'ArrowRight') || (boosted && runtime.down('KeyE'));
+    const moveLeft = runtime.down('KeyA', 'ArrowLeft') || (boosted && runtime.down('KeyQ'));
+    const x = Number(moveRight) - Number(moveLeft);
     const z = Number(runtime.down('KeyW')) - Number(runtime.down('KeyS'));
     const climb = Number(runtime.down('ArrowUp', 'PointerLeft')) - Number(runtime.down('ArrowDown', 'PointerRight'));
     const speed = boosted ? walkingBoost : 1;
@@ -430,19 +415,25 @@ export async function startCampus() {
 
     const poolPlaced = kit.layout.objects.has('pool');
     opening.local(pos, poolLocal);
+    const scaleX = Math.abs(ground.poolRoot.scale.x) || 1;
+    const scaleZ = Math.abs(ground.poolRoot.scale.z) || 1;
+    const scaleY = Math.abs(ground.poolRoot.scale.y) || 1;
+    const poolMarginX = (PLAYER_RADIUS + 0.15) / scaleX;
+    const poolMarginZ = (PLAYER_RADIUS + 0.15) / scaleZ;
     const inset = pool.depth / 2 - poolLocal.z;
-    const insidePool = poolPlaced && Math.abs(poolLocal.x) < pool.width / 2 && inset > 0 && inset < pool.depth;
-    const scaleY = ground.poolRoot.scale.y;
+    const insidePoolRaw = poolPlaced && Math.abs(poolLocal.x) < pool.width / 2 && inset > 0 && inset < pool.depth;
+    const insidePoolBasin = poolPlaced
+      && Math.abs(poolLocal.x) < pool.width / 2 - poolMarginX
+      && inset > poolMarginZ && inset < pool.depth - poolMarginZ;
     const waterY = pool.waterY * scaleY;
+    const lipClearY = 0.13 * scaleY + PLAYER_RADIUS;
     const floorY = (pool.bottomY + 0.3) * scaleY;
-    const minY = insidePool ? floorY : eyeHeight;
+    const canSubmerge = insidePoolBasin || (insidePoolRaw && pos.y < eyeHeight);
+    const minY = canSubmerge ? floorY : eyeHeight;
 
     if (climb) {
-      const nextY = THREE.MathUtils.clamp(pos.y + climb * droneClimbSpeed * speed * dt, minY, droneCeiling);
-      if (climb > 0 || nextY >= eyeHeight || insidePool || !kit.colliders.some((obstacle) =>
-        touchesCollider(pos.x, pos.z, playerRadius, obstacle) && nextY < obstacleTop(obstacle))) {
-        pos.y = nextY;
-      }
+      const desiredY = THREE.MathUtils.clamp(pos.y + climb * droneClimbSpeed * speed * dt, minY, droneCeiling);
+      pos.y = resolveVerticalMove(pos.x, pos.z, pos.y, desiredY, kit.colliders, map.boundary, obstacleRawTop);
     }
     if (x || z) {
       runtime.controls.getDirection(forward);
@@ -450,24 +441,27 @@ export async function startCampus() {
       forward.normalize();
       right.set(-forward.z, 0, forward.x);
       movement.copy(forward).multiplyScalar(z).addScaledVector(right, x).normalize().multiplyScalar(walkingSpeed * speed * dt);
-      if (pos.y < 0.2 && insidePool) {
+      if (pos.y < lipClearY && insidePoolRaw) {
         pos.x += movement.x;
         pos.z += movement.z;
         opening.local(pos, poolLocal);
-        const clampInset = THREE.MathUtils.clamp(pool.depth / 2 - poolLocal.z, playerRadius + 0.3, pool.depth - playerRadius - 0.3);
-        const clampLocalX = THREE.MathUtils.clamp(poolLocal.x, -pool.width / 2 + playerRadius + 0.3, pool.width / 2 - playerRadius - 0.3);
+        const clampInset = THREE.MathUtils.clamp(pool.depth / 2 - poolLocal.z, poolMarginZ, pool.depth - poolMarginZ);
+        const clampLocalX = THREE.MathUtils.clamp(poolLocal.x, -pool.width / 2 + poolMarginX, pool.width / 2 - poolMarginX);
         poolLocal.x = clampLocalX;
         poolLocal.z = pool.depth / 2 - clampInset;
         pos.copy(poolLocal).applyMatrix4(ground.poolRoot.matrixWorld);
+        resolveHorizontalMove(pos, 0, 0, kit.colliders, map.boundary, obstacleRawTop);
       } else {
-        const obstacles = kit.colliders.filter((obstacle) => pos.y < obstacleTop(obstacle));
-        walkWithCollision(pos, movement.x, movement.z, obstacles, map.boundary);
+        resolveHorizontalMove(pos, movement.x, movement.z, kit.colliders, map.boundary, obstacleRawTop);
       }
     }
 
     opening.local(pos, poolLocal);
     const currentInset = pool.depth / 2 - poolLocal.z;
     const currentlyInPool = poolPlaced && Math.abs(poolLocal.x) < pool.width / 2 && currentInset > 0 && currentInset < pool.depth;
+    if (!currentlyInPool && pos.y < eyeHeight) {
+      pos.y = resolveVerticalMove(pos.x, pos.z, pos.y, eyeHeight, kit.colliders, map.boundary, obstacleRawTop);
+    }
     const isUnderwater = currentlyInPool && pos.y < waterY;
     if (isUnderwater && pos.distanceTo(ground.portal.position) <= pool.triggerRadius) {
       dive();
@@ -493,7 +487,7 @@ export async function startCampus() {
 
   function exitCampus() {
     if (editor.active) editor.toggle();
-    teleport(map.stops[0]);
+    teleport(map.stops[0], { resetAltitude: true });
     runtime.exitToStart(() => {
       if (location.search) history.replaceState(null, '', location.pathname);
     });

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { academicStoryHeight, officialStoryHeight, sign, standard } from './buildingFactory.js';
+import { academicStoryHeight, addLocalCollider, officialStoryHeight, sign, standard } from './buildingFactory.js';
 import { box, canvasTexture, groupAt, part, seededRandom, unitPlane } from './sceneKit.js';
 
 const soffitThickness = 0.28;
@@ -116,7 +116,7 @@ function buildScreen(root, materials, { width, depth, facade }, levels) {
   }
 }
 
-function buildRoof(root, { plaster, fascia, blue, roofDeck }, { width, depth, facade, height }) {
+function buildRoof(root, colliders, { plaster, fascia, blue, roofDeck }, { width, depth, facade, height }) {
   const overhang = 1.32;
   const rear = 0.54;
   const roofWidth = width + 1.26;
@@ -129,6 +129,7 @@ function buildRoof(root, { plaster, fascia, blue, roofDeck }, { width, depth, fa
   box(root, blue, [roofWidth + 0.07, copingThickness, 0.23], [0, height + roofRise - copingThickness / 2, facade + overhang - 0.055]);
   box(root, roofDeck, [roofWidth + 0.07, copingThickness - 0.01, roofDepth - 0.15],
     [0, height + roofRise - copingThickness / 2, centerZ - 0.075]);
+  addLocalCollider(colliders, root, 0, centerZ, roofWidth + 0.07, roofDepth, true, height + roofRise, height - 0.24);
   if (fascia) {
     part(root, unitPlane, fascia, [0, fasciaY, fasciaZ], [roofWidth - 0.09, fasciaHeight, 1]);
   } else {
@@ -158,6 +159,8 @@ export async function createCseExterior(kit) {
     roofDeck: standard('#7b7569')
   };
   return {
+    facadePad: 0.18,
+    roofTop: ({ height }) => height + roofRise,
     groundExterior: (building) => buildGround(building, materials),
     exterior(building) {
       const { root, width, facade, height, floors } = building;
@@ -167,7 +170,7 @@ export async function createCseExterior(kit) {
         levels.push(THREE.MathUtils.lerp(adjacentStoryHeight, height, (row - 1) / (rows - 1)));
       }
       buildScreen(root, materials, building, [...levels, height]);
-      buildRoof(root, materials, building);
+      buildRoof(root, kit.colliders, materials, building);
       const rearSignY = levels[1] ?? screenBase;
       sign(root, {
         title: 'DEPT OF CSE', position: [width * 0.16, rearSignY + 0.02, -facade - 0.2],

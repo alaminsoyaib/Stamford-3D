@@ -59,7 +59,7 @@ export function buildGateGarden(scene, kit) {
     box(gate, m.brick, [pillar, height - 0.61, 1.53], [px, (height - 0.61) / 2, 0]);
     box(gate, m.concrete, [pillar + 0.18, 0.32, 1.65], [px, 0.16, 0]);
     box(gate, m.concrete, [pillar + 0.29, 0.19, 1.73], [px, height - 0.64, 0]);
-    addLocalCollider(colliders, gate, px, 0, pillar + 0.18, 1.65);
+    addLocalCollider(colliders, gate, px, 0, pillar + 0.29, 1.73, true, height + 0.30, 0);
     sign(gate, {
       title: side < 0 ? 'WELCOME' : 'CAMPUS ENTRY', subtitle: side < 0 ? 'VISITOR ENTRANCE' : 'DHAKA 1217',
       position: [px, 1.82, 0.779], width: 0.93, height: 0.61,
@@ -73,11 +73,12 @@ export function buildGateGarden(scene, kit) {
       box(wing, m.gate, [0.145, 2.87, 0.052], [0, 1.53, pz]);
     }
     box(wing, m.gate, [0.15, 0.13, depth], [0, 2.99, -depth / 2]);
-    addLocalCollider(colliders, wing, 0, -depth / 2, 0.15, depth);
+    addLocalCollider(colliders, wing, 0, -depth / 2, 0.18, depth, true, 3.06, 0);
   }
   box(gate, m.concrete, [span + 0.21, 0.2, 1.42], [0, height - 1.04, 0]);
   box(gate, m.blue, [span + 0.12, 1.14, 1.13], [0, height - 0.38, 0]);
   box(gate, m.gate, [span + 0.39, 0.14, 1.32], [0, height + 0.23, 0]);
+  addLocalCollider(colliders, gate, 0, 0, span + 0.39, 1.42, true, height + 0.30, height - 1.14);
   for (const side of [-1, 1]) sign(gate, {
     title: 'STAMFORD UNIVERSITY BANGLADESH',
     subtitle: '51 SIDDHESWARI ROAD   •   DHAKA 1217',

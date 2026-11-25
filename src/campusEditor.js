@@ -348,8 +348,9 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
       : []);
     const index = walls.findIndex((s) => s.id === segment.id);
     if (index === -1) return;
-    const seg1 = { id: `wall-${Date.now()}-1`, a: [...segment.a], b: [...cutPoint] };
-    const seg2 = { id: `wall-${Date.now()}-2`, a: [...cutPoint], b: [...segment.b] };
+    const prefix = segment.id.includes('street') ? 'wall-street' : 'wall';
+    const seg1 = { id: `${prefix}-${Date.now()}-1`, a: [...segment.a], b: [...cutPoint] };
+    const seg2 = { id: `${prefix}-${Date.now()}-2`, a: [...cutPoint], b: [...segment.b] };
     walls.splice(index, 1, seg1, seg2);
     kit.syncPerimeter?.();
     selectWall(seg2);
@@ -878,7 +879,8 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
       if (hitData) {
         const { hit, segment } = hitData;
         const [cx, cz] = closestOnEdge(hit.point.x, hit.point.z, segment.a, segment.b);
-        sliceMarker.position.set(snap(cx), 0, snap(cz));
+        const [sx, sz] = closestOnEdge(snap(cx), snap(cz), segment.a, segment.b);
+        sliceMarker.position.set(sx, 0, sz);
         sliceMarker.visible = true;
       } else {
         sliceMarker.visible = false;
@@ -921,13 +923,14 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
     }
     delete document.body.dataset.editorDrag;
     deck.classList.remove('drop-target');
-    if (cancelled || moved) return;
     if (sliceMode) {
+      if (cancelled || moved) return;
       const hitData = pickWall(event);
       if (hitData) {
         const { hit, segment } = hitData;
         const [cx, cz] = closestOnEdge(hit.point.x, hit.point.z, segment.a, segment.b);
-        const cutPoint = [rounded(snap(cx)), rounded(snap(cz))];
+        const [sx, sz] = closestOnEdge(snap(cx), snap(cz), segment.a, segment.b);
+        const cutPoint = [rounded(sx), rounded(sz)];
         const distA = Math.hypot(cutPoint[0] - segment.a[0], cutPoint[1] - segment.a[1]);
         const distB = Math.hypot(cutPoint[0] - segment.b[0], cutPoint[1] - segment.b[1]);
         if (distA > 0.3 && distB > 0.3) {

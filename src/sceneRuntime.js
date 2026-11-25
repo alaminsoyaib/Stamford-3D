@@ -153,7 +153,7 @@ export function createRuntime({ fov, far, shadows = false, shiftStrafe = false, 
     if (!coarse.matches && document.pointerLockElement !== canvas) {
       requestLock();
     }
-    if (document.body.dataset.mode === 'lock' || (!coarse.matches && event.pointerType !== 'touch')) {
+    if (active && (document.body.dataset.mode === 'lock' || (!coarse.matches && event.pointerType !== 'touch'))) {
       if (event.button === 0) mouseButtons.add('PointerLeft');
       else if (event.button === 2) mouseButtons.add('PointerRight');
       return;

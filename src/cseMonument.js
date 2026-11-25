@@ -72,7 +72,7 @@ function buildGroundSign(root, colliders, materials, wedge) {
   for (let i = 0; i <= 10; i++) {
     box(base, materials.iron, [0.044, 0.58, 0.05], [(i / 10 - 0.5) * (signWidth - 0.72), 1.12, railZ]);
   }
-  addLocalCollider(colliders, base, 0, 0, signWidth, signDepth + 0.12);
+  addLocalCollider(colliders, base, 0, 0, signWidth, signDepth + 0.12, true, 1.45, 0);
 }
 
 function buildMemorial(root, colliders, materials) {
@@ -93,7 +93,7 @@ function buildMemorial(root, colliders, materials) {
       cylinder(plaque, materials.pin, 0.014, 0.015, [x, y, 0.194]).rotation.x = Math.PI / 2;
     }
   }
-  addLocalCollider(colliders, plaque, 0, 0, plaqueWidth + 0.08, 0.51);
+  addLocalCollider(colliders, plaque, 0, 0, plaqueWidth + 0.08, 0.51, true, 1.66, 0);
 }
 
 function buildPlanting(root, materials) {

@@ -71,6 +71,7 @@ export async function buildCSEAdmission(scene, kit) {
     windows: [{ x: -9.5, width: 2.1 }, { x: 0.13, width: 2.14 }, { x: 9.4, width: 2.3 }],
     details({ root, facade, fixtureX, spec, height, frontFloors }) {
       box(root, m.blue, [4.54, 0.21, 1.21], [fixtureX(-4.8), 2.89, facade + 0.34]).rotation.x = 0.08;
+      addLocalCollider(kit.colliders, root, fixtureX(-4.8), facade + 0.34, 4.54, 1.21, true, 3.05, 2.74);
       const wing = westWingBounds(spec);
       if (!wing) return;
       const block = groupAt(root, 'Official Building west wing', [wing.x, 0, wing.z]);
@@ -85,7 +86,7 @@ export async function buildCSEAdmission(scene, kit) {
           kit.windowAt(block, x, (level + 0.5) * story, wing.depth / 2 + 0.025, Math.min(2.16, wing.width * 0.6), 1.25, m.concrete);
         }
       }
-      addLocalCollider(kit.colliders, block, 0, 0, wing.width, wing.depth, true, height + 0.535);
+      addLocalCollider(kit.colliders, block, 0, 0, wing.width, wing.depth, true, height + 0.535, 0);
     }
   });
   if (!map.surveyTrees) for (const px of [-7.7, -2.4]) kit.planter(zone, 9 + px, -0.87, 0.39, 44 + px);

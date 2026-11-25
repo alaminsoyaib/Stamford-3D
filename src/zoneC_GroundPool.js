@@ -51,10 +51,11 @@ function buildGroundDetails(parent, kit) {
   const shelter = kit.prop(parent, 'shelter', 'Field shelter', -15.2, -43.4, Math.PI / 2);
   box(shelter, m.concrete, [5.9, 0.12, 4.1], [0, 0.06, 0]);
   part(shelter, roofGeometry, m.cafe, [0, 3.03, 0], [4.76, 1.13, 3.38]);
+  addLocalCollider(kit.colliders, shelter, 0, 0, 5.9, 4.1, true, 3.60, 2.46);
   for (const x of [-2.63, 2.63]) {
     for (const z of [-1.69, 1.69]) {
       box(shelter, m.blue, [0.12, 2.62, 0.12], [x, 1.36, z]);
-      addLocalCollider(kit.colliders, shelter, x, z, 0.16, 0.16);
+      addLocalCollider(kit.colliders, shelter, x, z, 0.16, 0.16, true, 2.68, 0);
     }
     box(shelter, m.wood, [0.36, 0.12, 2.4], [x * 0.88, 0.48, 0]);
   }
@@ -86,6 +87,9 @@ function buildCanteen(parent, kit) {
         const cloth = box(root, stripe % 3 ? m.cafe : m.white, [0.452, 0.08, 1.48],
           [(stripe - (stripes - 1) / 2) * 0.445, 2.8, facade + 0.62]);
         cloth.rotation.x = 0.19;
+      }
+      if (stripes > 0) {
+        addLocalCollider(kit.colliders, root, 0, facade + 0.62, stripes * 0.445, 1.48, true, 2.98, 2.62);
       }
     }
   });
@@ -231,9 +235,10 @@ function buildPoolSurroundings(parent, kit) {
   for (const px of [-3.34, 3.34]) {
     box(gate, m.brick, [0.53, 2.58, 0.58], [px, 1.29, 0]);
     box(gate, m.concrete, [0.68, 0.15, 0.73], [px, 2.59, 0]);
-    addLocalCollider(kit.colliders, gate, px, 0, 0.55, 0.61);
+    addLocalCollider(kit.colliders, gate, px, 0, 0.68, 0.73, true, 2.87, 0);
   }
   box(gate, m.blue, [7.17, 0.5, 0.2], [0, 2.62, 0]);
+  addLocalCollider(kit.colliders, gate, 0, 0, 7.17, 0.35, true, 2.87, 2.37);
   sign(gate, { title: 'SWIMMING POOL', subtitle: 'STAMFORD UNIVERSITY BANGLADESH', width: 6.97, height: 0.45,
     position: [0, 2.62, 0.106], serif: true });
   if (surveyed) return;
