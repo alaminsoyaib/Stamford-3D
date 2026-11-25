@@ -8,6 +8,14 @@ export const PERIMETER_WALL_HEIGHT = 2.67;
 export const OUTER_MARGIN_X = 35;
 export const OUTER_MARGIN_MIN_Z = 35;
 export const OUTER_MARGIN_MAX_Z = 40;
+const VERTICAL_FLUSH_EPS = 1e-4;
+
+export function poolMinAltitude({ insidePoolBasin, insidePoolRaw, currentY, floorY, lipClearY, eyeHeight }) {
+  if (insidePoolBasin) return floorY;
+  if (insidePoolRaw && currentY < lipClearY) return floorY;
+  if (insidePoolRaw && currentY < eyeHeight) return lipClearY;
+  return eyeHeight;
+}
 
 export function wallTop(seg, radius = PLAYER_RADIUS) {
   return (seg.id?.includes('street') ? STREET_WALL_HEIGHT : PERIMETER_WALL_HEIGHT) + radius;
@@ -41,7 +49,7 @@ export function obstacleVerticalSpan(obstacle, getRawTop, radius = PLAYER_RADIUS
 export function activeCollidersAtY(y, colliders, getRawTop, radius = PLAYER_RADIUS) {
   return colliders.filter((obs) => {
     const span = obstacleVerticalSpan(obs, getRawTop, radius);
-    return y > span.bottom && y < span.top;
+    return y > span.bottom + VERTICAL_FLUSH_EPS && y < span.top - VERTICAL_FLUSH_EPS;
   });
 }
 
@@ -67,7 +75,7 @@ export function blockedAt(x, z, y, colliders, bounds, getRawTop, radius = PLAYER
 
   for (const obs of colliders) {
     const span = obstacleVerticalSpan(obs, getRawTop, radius);
-    if (y > span.bottom && y < span.top && touchesCollider(x, z, testRadius, obs)) return true;
+    if (y > span.bottom + VERTICAL_FLUSH_EPS && y < span.top - VERTICAL_FLUSH_EPS && touchesCollider(x, z, testRadius, obs)) return true;
   }
   return false;
 }
@@ -119,7 +127,7 @@ function segmentsCross(ax, az, bx, bz, cx, cz, dx, dz) {
     && ((d3 > eps && d4 < -eps) || (d3 < -eps && d4 > eps));
 }
 
-export function resolveHorizontalMove(position, dx, dz, colliders, bounds, getRawTop, radius = PLAYER_RADIUS) {
+export function resolveHorizontalMove(position, dx, dz, colliders, bounds, getRawTop, radius = PLAYER_RADIUS, constrainXZ = null) {
   const activeObs = activeCollidersAtY(position.y, colliders, getRawTop, radius);
   const hasWallsArray = Array.isArray(bounds.walls);
   const activeWalls = hasWallsArray
@@ -159,6 +167,13 @@ export function resolveHorizontalMove(position, dx, dz, colliders, bounds, getRa
       }
       if (stepZ && !blockedAt(position.x, position.z + stepZ, position.y, colliders, bounds, getRawTop, radius)) {
         position.z += stepZ;
+      }
+      if (constrainXZ) {
+        const [cx, cz] = constrainXZ(position.x, position.z);
+        if (!blockedAt(cx, cz, position.y, colliders, bounds, getRawTop, radius)) {
+          position.x = cx;
+          position.z = cz;
+        }
       }
       continue;
     }
@@ -213,6 +228,12 @@ export function resolveHorizontalMove(position, dx, dz, colliders, bounds, getRa
 
       nx = Math.max(outer.minX, Math.min(outer.maxX, nx));
       nz = Math.max(outer.minZ, Math.min(outer.maxZ, nz));
+      if (constrainXZ) {
+        const [cx, cz] = constrainXZ(nx, nz);
+        moved += Math.hypot(cx - nx, cz - nz);
+        nx = cx;
+        nz = cz;
+      }
       if (moved < 1e-5) break;
     }
 

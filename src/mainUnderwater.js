@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { batchStaticMeshes, cameraFrustum, createPortal, cylinder, glowSprite, groupAt, part, rod, seededRandom } from './sceneKit.js';
 import { createDroneAudio } from './campusDroneAudio.js';
+import { addEllipsoidCollider, resolveOceanMove } from './oceanCollision.js';
 import { createRuntime, setLocation, updateCoordinates } from './sceneRuntime.js';
 
 const TAU = Math.PI * 2;
@@ -27,12 +28,13 @@ const reefColors = [
 ];
 const rocks = [matte('#53747b'), matte('#627c7c'), matte('#738788'), matte('#435a69')];
 
-function outcrop(parent, [x, y, z], [sx, sy, sz], variant, random) {
+function outcrop(parent, [x, y, z], [sx, sy, sz], variant, random, colliders) {
   const mesh = part(parent, rock, rocks[variant % rocks.length], [x, y, z], [sx, sy, sz]);
   mesh.rotation.set((random() - 0.5) * 0.47, random() * TAU, (random() - 0.5) * 0.27);
+  if (colliders) addEllipsoidCollider(colliders, [x, y, z], [sx, sy, sz], mesh.rotation.y);
 }
 
-function rockColumn(parent, x, topY, z, radius, index, random) {
+function rockColumn(parent, x, topY, z, radius, index, random, colliders) {
   const levels = Math.ceil((topY - seafloorY) / 8.5);
   for (let level = 0; level <= levels; level++) {
     const y = THREE.MathUtils.lerp(topY, seafloorY, level / levels);
@@ -40,7 +42,7 @@ function rockColumn(parent, x, topY, z, radius, index, random) {
     const spread = radius * (0.59 + depth * 0.23 + random() * 0.16);
     const px = x + Math.sign(x) * depth * 2.5 + (random() - 0.5) * 1.5;
     const pz = z + Math.sin(y * 0.19 + index) * 1.1;
-    outcrop(parent, [px, y, pz], [spread, 6.7 + random() * 1.6, spread * 0.87], index + level, random);
+    outcrop(parent, [px, y, pz], [spread, 6.7 + random() * 1.6, spread * 0.87], index + level, random, colliders);
   }
 }
 
@@ -136,7 +138,7 @@ function kelpPatch(scene, position, random, updates) {
   });
 }
 
-function buildReef(scene, random, updates) {
+function buildReef(scene, random, updates, colliders) {
   const reef = groupAt(scene, 'Sunlit coral shelves', [0, 0, 0]);
   const shelves = [
     [-10.3, -15.4, 0.25, 5.5], [9.2, -15.4, -3.7, 5.5], [-9, -20.9, -13.8, 7.2],
@@ -144,20 +146,20 @@ function buildReef(scene, random, updates) {
     [-25.8, -25.7, -24, 9.5], [25.7, -25.8, -27.1, 8.6], [-22.8, -25.8, 8.3, 7]
   ];
   for (const [index, [x, y, z, radius]] of shelves.entries()) {
-    outcrop(reef, [x, y - 3.25, z], [radius, 5.3, radius * 0.76], index, random);
-    outcrop(reef, [x + radius * 0.21, y - 7.1, z - 1], [radius * 0.79, 5.7, radius * 0.69], index + 2, random);
+    outcrop(reef, [x, y - 3.25, z], [radius, 5.3, radius * 0.76], index, random, colliders);
+    outcrop(reef, [x + radius * 0.21, y - 7.1, z - 1], [radius * 0.79, 5.7, radius * 0.69], index + 2, random, colliders);
     for (let c = 0; c < 15; c++) {
       const angle = c * 2.399;
       const r = Math.sqrt(random()) * radius * 0.7;
       const px = x + r * Math.cos(angle);
       const pz = z + r * 0.73 * Math.sin(angle);
       const py = y + (1 - r / radius) * 1.16;
-      outcrop(reef, [px, py - 0.54, pz], [1 + random() * 0.56, 0.72, 0.91], c + index, random);
+      outcrop(reef, [px, py - 0.54, pz], [1 + random() * 0.56, 0.72, 0.91], c + index, random, colliders);
       coral(reef, [px, py, pz], 0.54 + random() * 0.94, c + index, random, c % 3 !== 0);
     }
     kelpPatch(scene, [x - radius * 0.31, y + 0.31, z], random, updates);
     kelpPatch(scene, [x + radius * 0.22, y + 0.62, z - radius * 0.31], random, updates);
-    rockColumn(reef, x, y - 12, z, radius, index, seededRandom(440 + index * 339));
+    rockColumn(reef, x, y - 12, z, radius, index, seededRandom(440 + index * 339), colliders);
   }
   batchStaticMeshes(reef);
 }
@@ -304,11 +306,11 @@ function turtle(scene, center, radius, phase, updates) {
   });
 }
 
-function buildMidwater(scene, random, updates) {
+function buildMidwater(scene, random, updates, colliders) {
   const cliffs = groupAt(scene, 'Midwater basalt stacks', [0, 0, 0]);
   const stacks = [[-20, -50, -18, 8], [19, -47, -21, 7.3], [29, -62, 4, 9], [-25, -62, 7, 9.5], [-10, -67, -32, 8.1]];
   for (const [index, [x, y, z, size]] of stacks.entries()) {
-    rockColumn(cliffs, x, y, z, size, index + 3, seededRandom(391 + index * 173));
+    rockColumn(cliffs, x, y, z, size, index + 3, seededRandom(391 + index * 173), colliders);
   }
   batchStaticMeshes(cliffs);
   const silvers = ['#78b7bb', '#7cc6d1', '#a0b8c3'];
@@ -419,7 +421,7 @@ function anglerfish(scene, center, phase, updates) {
   });
 }
 
-function buildAbyss(scene, random, updates) {
+function buildAbyss(scene, random, updates, colliders) {
   const floorGeometry = new THREE.PlaneGeometry(142, 142, 36, 36);
   const vertices = floorGeometry.attributes.position;
   const sand = [];
@@ -447,7 +449,7 @@ function buildAbyss(scene, random, updates) {
     const x = (random() - 0.5) * 65;
     const z = (random() - 0.7) * 62;
     const height = 0.55 + random() * 3.8;
-    outcrop(vents, [x, -121 + height * 0.28, z], [0.6 + random() * 2.1, height, 0.5 + random() * 1.9], i, random);
+    outcrop(vents, [x, -121 + height * 0.28, z], [0.6 + random() * 2.1, height, 0.5 + random() * 1.9], i, random, colliders);
     for (let bloom = 0; bloom < 3; bloom++) {
       const base = [x + (random() - 0.5) * 1.3, -120.8, z + (random() - 0.5) * 1.6];
       const end = [base[0] + 0.19, base[1] + height * (0.78 + random()), base[2]];
@@ -598,14 +600,15 @@ export function startUnderwater() {
   placeAtReef();
   const random = seededRandom(72841);
   const animations = [];
+  const oceanColliders = [];
   const atmosphere = oceanAtmosphere(scene);
   animations.push(createSurfaceLight(scene), suspendedParticles(scene, random));
-  buildReef(scene, random, animations);
+  buildReef(scene, random, animations, oceanColliders);
   fishSchool(scene, [-2.5, -9.1, -9.5], 14, 4.7, ['#ffc56f', '#f49b53', '#f9d586'], false, random, animations);
   fishSchool(scene, [6.7, -16.2, -13.3], 13, 5.8, ['#8de3e6', '#6faadb', '#f9977c'], false, random, animations);
   fishSchool(scene, [-11.4, -23, -19.6], 14, 6.7, ['#f2b768', '#9c9de0', '#f88a7d'], false, random, animations);
-  buildMidwater(scene, random, animations);
-  buildAbyss(scene, random, animations);
+  buildMidwater(scene, random, animations, oceanColliders);
+  buildAbyss(scene, random, animations, oceanColliders);
   const portal = createPortal(scene, { name: 'Return Portal Ring', position: [8, -2, -3.3] });
   const forward = new THREE.Vector3();
   const right = new THREE.Vector3();
@@ -686,10 +689,11 @@ export function startUnderwater() {
       right.set(-forward.z, 0, forward.x);
       swim.copy(forward).multiplyScalar(z).addScaledVector(right, x);
       if (swim.lengthSq() > 1) swim.normalize();
-      camera.position.addScaledVector(swim, 8.5 * boostSpeed * dt);
-      camera.position.y = THREE.MathUtils.clamp(camera.position.y + climb * 11.0 * boostSpeed * dt, -maxDepth, 0);
-      camera.position.x = THREE.MathUtils.clamp(camera.position.x, -limit, limit);
-      camera.position.z = THREE.MathUtils.clamp(camera.position.z, -limit, limit);
+      resolveOceanMove(camera.position,
+        swim.x * 8.5 * boostSpeed * dt,
+        climb * 11.0 * boostSpeed * dt,
+        swim.z * 8.5 * boostSpeed * dt,
+        oceanColliders, { limit, maxDepth });
       if (camera.position.distanceTo(portal.position) <= 2.2) returnToPool();
 
       droneAudio.update(document.hasFocus(), x, z, climb, true);

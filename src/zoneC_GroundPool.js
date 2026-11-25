@@ -2,10 +2,10 @@ import * as THREE from 'three';
 import { addLocalCollider, floor, sign, standard } from './buildingFactory.js';
 import { academicBuildingOptions } from './academicBuilding.js';
 import { worldOutline } from './campusFootprints.js';
+import { rounded } from './campusLayout.js';
+import { buildFieldShelter } from './fieldShelter.js';
 import { batchStaticMeshes, box, createPortal, cylinder, groupAt, part, rod } from './sceneKit.js';
 
-const roofGeometry = new THREE.ConeGeometry(1, 1, 4);
-roofGeometry.rotateY(Math.PI / 4);
 const parasolGeometry = new THREE.ConeGeometry(1, 0.47, 9, 1);
 
 function buildGroundDetails(parent, kit) {
@@ -46,19 +46,13 @@ function buildGroundDetails(parent, kit) {
   circle.rotation.x = -Math.PI / 2;
   circle.castShadow = false;
   circle.userData.grade = true;
-  if (surveyed) return;
 
-  const shelter = kit.prop(parent, 'shelter', 'Field shelter', -15.2, -43.4, Math.PI / 2);
-  box(shelter, m.concrete, [5.9, 0.12, 4.1], [0, 0.06, 0]);
-  part(shelter, roofGeometry, m.cafe, [0, 3.03, 0], [4.76, 1.13, 3.38]);
-  addLocalCollider(kit.colliders, shelter, 0, 0, 5.9, 4.1, true, 3.60, 2.46);
-  for (const x of [-2.63, 2.63]) {
-    for (const z of [-1.69, 1.69]) {
-      box(shelter, m.blue, [0.12, 2.62, 0.12], [x, 1.36, z]);
-      addLocalCollider(kit.colliders, shelter, x, z, 0.16, 0.16, true, 2.68, 0);
-    }
-    box(shelter, m.wood, [0.36, 0.12, 2.4], [x * 0.88, 0.48, 0]);
-  }
+  const [shelterX, shelterZ, shelterYaw] = surveyed
+    ? [...worldOutline([[0, 11.5]], ground)[0].map(rounded), ground.yaw * Math.PI / 180]
+    : [-15.2, -43.4, Math.PI / 2];
+  const shelter = kit.prop(parent, 'shelter', 'Field shelter', shelterX, shelterZ, shelterYaw);
+  buildFieldShelter(shelter, kit);
+  if (surveyed) return;
   kit.bench(parent, 14, -31.1, -Math.PI / 2);
   kit.bench(parent, 14, -36.5, -Math.PI / 2);
   kit.bench(parent, 1.9, -51.3);
@@ -101,7 +95,8 @@ function buildCanteen(parent, kit) {
     part(patio, parasolGeometry, m.cafe, [0, 2.44, 0], [1.42, 1, 1.42]);
     cylinder(patio, m.wood, 0.67, 0.086, [0, 0.76, 0]);
     for (const dx of [-0.81, 0.81]) cylinder(patio, m.concrete, 0.22, 0.42, [dx, 0.21, 0]);
-    addLocalCollider(kit.colliders, patio, 0, 0, 1.34, 1.34);
+    addLocalCollider(kit.colliders, patio, 0, 0, 1.92, 1.34, true, 2.20, 0);
+    addLocalCollider(kit.colliders, patio, 0, 0, 2.60, 2.60, true, 2.72, 2.15);
   }
 }
 
@@ -174,6 +169,19 @@ function poolWater(scene, pool) {
   };
 }
 
+export function addPoolBasinColliders(colliders, parent, pool) {
+  const { width, depth, bottomY } = pool;
+  for (let step = 0; step < 5; step++) {
+    const top = -0.28 - step * 0.37;
+    const pz = depth / 2 - (step + 0.5) * 0.52;
+    addLocalCollider(colliders, parent, 0, pz, 3.65, 0.54, true, top + 0.04, bottomY);
+  }
+  const ladderX = -width / 2 + 0.59;
+  const ladderZ = -depth / 2 + 2.6;
+  addLocalCollider(colliders, parent, ladderX, ladderZ, 0.14, 0.80, true, 0.63, -2.14);
+  addLocalCollider(colliders, parent, ladderX - 0.42, ladderZ, 0.90, 0.80, true, 0.63, 0);
+}
+
 function buildPoolBasin(parent, kit) {
   const { pool } = kit.map;
   const { width, depth, bottomY } = pool;
@@ -213,6 +221,7 @@ function buildPoolBasin(parent, kit) {
     const y = -1.99 + rung * 0.39;
     rod(parent, m.steel, [ladderX, y, ladderZ - 0.36], [ladderX, y, ladderZ + 0.36], 0.029);
   }
+  addPoolBasinColliders(kit.colliders, parent, pool);
 }
 
 function buildPoolSurroundings(parent, kit) {

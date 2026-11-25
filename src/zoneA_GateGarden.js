@@ -146,10 +146,22 @@ export function buildGateGarden(scene, kit) {
 
   const barrier = kit.prop(zone, 'barrier', 'Raised driveway barrier', 3, 27.8);
   cylinder(barrier, m.black, 0.13, 0.87, [0, 0.435, 0]);
+  addLocalCollider(colliders, barrier, 0, 0, 0.30, 0.30, true, 0.92, 0);
   const beam = groupAt(barrier, 'Striped barrier arm', [0, 0.83, 0]);
   beam.rotation.z = 1.24;
   for (let index = 0; index < 12; index++) {
     box(beam, index % 2 ? m.white : m.black, [0.36, 0.093, 0.078], [index * 0.36, 0, 0]);
+  }
+  const beamSpan = 4.14;
+  const beamCos = Math.cos(1.24);
+  const beamSin = Math.sin(1.24);
+  for (let seg = 0; seg < 4; seg++) {
+    const s0 = seg * (beamSpan / 4);
+    const s1 = (seg + 1) * (beamSpan / 4);
+    const segCenterX = ((s0 + s1) / 2) * beamCos;
+    const segWidth = Math.max(0.24, (s1 - s0) * beamCos + 0.12);
+    addLocalCollider(colliders, barrier, segCenterX, 0, segWidth, 0.14, true,
+      0.83 + s1 * beamSin + 0.06, 0.83 + s0 * beamSin - 0.06);
   }
   batchStaticMeshes(zone);
 }

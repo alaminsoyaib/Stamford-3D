@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { addLocalCollider, createCampusKit, floor, standard } from './buildingFactory.js';
 import { createCampusEditor } from './campusEditor.js';
 import { createDroneAudio } from './campusDroneAudio.js';
-import { PLAYER_RADIUS, blockedAt, resolveHorizontalMove, resolveVerticalMove } from './campusCollision.js';
+import { PLAYER_RADIUS, blockedAt, poolMinAltitude, resolveHorizontalMove, resolveVerticalMove } from './campusCollision.js';
 import { campusGatePose, insideLand, landExtent, nearestLandEdge, perimeterWalls } from './campusBoundary.js';
 import { renderCampusHero } from './campusHero.js';
 import { createPoolOpening, movePoolDependencies, readCampusLayout } from './campusLayout.js';
@@ -428,8 +428,17 @@ export async function startCampus() {
     const waterY = pool.waterY * scaleY;
     const lipClearY = 0.13 * scaleY + PLAYER_RADIUS;
     const floorY = (pool.bottomY + 0.3) * scaleY;
-    const canSubmerge = insidePoolBasin || (insidePoolRaw && pos.y < eyeHeight);
-    const minY = canSubmerge ? floorY : eyeHeight;
+    const minY = poolMinAltitude({ insidePoolBasin, insidePoolRaw, currentY: pos.y, floorY, lipClearY, eyeHeight });
+    const poolClampTarget = new THREE.Vector3();
+    function clampToPoolBasin(wx, wz) {
+      poolClampTarget.set(wx, pos.y, wz);
+      opening.local(poolClampTarget, poolLocal);
+      const clampInset = THREE.MathUtils.clamp(pool.depth / 2 - poolLocal.z, poolMarginZ, pool.depth - poolMarginZ);
+      poolLocal.x = THREE.MathUtils.clamp(poolLocal.x, -pool.width / 2 + poolMarginX, pool.width / 2 - poolMarginX);
+      poolLocal.z = pool.depth / 2 - clampInset;
+      poolClampTarget.copy(poolLocal).applyMatrix4(ground.poolRoot.matrixWorld);
+      return [poolClampTarget.x, poolClampTarget.z];
+    }
 
     if (climb) {
       const desiredY = THREE.MathUtils.clamp(pos.y + climb * droneClimbSpeed * speed * dt, minY, droneCeiling);
@@ -442,15 +451,7 @@ export async function startCampus() {
       right.set(-forward.z, 0, forward.x);
       movement.copy(forward).multiplyScalar(z).addScaledVector(right, x).normalize().multiplyScalar(walkingSpeed * speed * dt);
       if (pos.y < lipClearY && insidePoolRaw) {
-        pos.x += movement.x;
-        pos.z += movement.z;
-        opening.local(pos, poolLocal);
-        const clampInset = THREE.MathUtils.clamp(pool.depth / 2 - poolLocal.z, poolMarginZ, pool.depth - poolMarginZ);
-        const clampLocalX = THREE.MathUtils.clamp(poolLocal.x, -pool.width / 2 + poolMarginX, pool.width / 2 - poolMarginX);
-        poolLocal.x = clampLocalX;
-        poolLocal.z = pool.depth / 2 - clampInset;
-        pos.copy(poolLocal).applyMatrix4(ground.poolRoot.matrixWorld);
-        resolveHorizontalMove(pos, 0, 0, kit.colliders, map.boundary, obstacleRawTop);
+        resolveHorizontalMove(pos, movement.x, movement.z, kit.colliders, map.boundary, obstacleRawTop, PLAYER_RADIUS, clampToPoolBasin);
       } else {
         resolveHorizontalMove(pos, movement.x, movement.z, kit.colliders, map.boundary, obstacleRawTop);
       }

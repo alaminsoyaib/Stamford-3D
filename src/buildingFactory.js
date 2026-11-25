@@ -246,8 +246,11 @@ export function createCampusKit(map) {
   const parked = new Map();
   const prop = (parent, kind, name, x, z, yaw = 0, options) =>
     add(`${kind}:${x}:${z}`, groupAt(parent, name, [x, 0, z], yaw), undefined, options);
-  const direction = (parent, settings) =>
-    add(`sign:${settings.x}:${settings.z}`, wayfinding(parent, materials, settings));
+  const direction = (parent, settings) => {
+    const root = add(`sign:${settings.x}:${settings.z}`, wayfinding(parent, materials, settings));
+    addLocalCollider(colliders, root, 0, 0, settings.width ?? 2.35, 0.24, true, 2.08, 0);
+    return root;
+  };
   const foliage = ['#45663b', '#66834a', '#7d9654', '#547943'].map((color) =>
     standard(color, { side: THREE.DoubleSide }));
   const windowMaterials = [];
@@ -499,8 +502,9 @@ export function createCampusKit(map) {
             ? undefined
             : height + 0.535;
       addLocalCollider(colliders, root, 0, -recess / 2, width + pad * 2, depth - recess + pad * 2, true, coreTop, 0);
-      if (recess > 0 && frontFloors > 1 && !lowerDepth) {
-        addLocalCollider(colliders, root, 0, 0, width + pad * 2, depth + pad * 2, true, height + 0.535, story);
+      if (recess > 0 && !lowerDepth) {
+        const overhangBottom = frontFloors > 1 ? story : story - 0.05;
+        addLocalCollider(colliders, root, 0, 0, width + pad * 2, depth + pad * 2, true, height + 0.535, overhangBottom);
       }
       if (lowerDepth) {
         buildAcademicStep(width, depth, endWidth, lowerDepth, frontFloors);
@@ -729,6 +733,7 @@ export function createCampusKit(map) {
     pot.receiveShadow = true;
     const plant = groupAt(root, 'Potted foliage', [0, size * 0.52, 0]);
     shrub(plant, 0, 0, size * 1.5, seed, false);
+    addLocalCollider(colliders, root, 0, 0, size * 2, size * 2, true, size * 1.5, 0);
   }
 
   function bench(parent, x, z, yaw = 0) {
@@ -743,7 +748,7 @@ export function createCampusKit(map) {
     for (let index = 0; index < 3; index++) {
       box(root, materials.wood, [1.83, 0.102, 0.07], [0, 0.6 + index * 0.13, -0.218]);
     }
-    addLocalCollider(colliders, root, 0, 0, 1.82, 0.48);
+    addLocalCollider(colliders, root, 0, 0, 1.82, 0.48, true, 0.95, 0);
   }
 
   function buildAdded(parent) {

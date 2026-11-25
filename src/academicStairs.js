@@ -123,11 +123,12 @@ export function buildAcademicStairs(kit, {
       const x = side * halfWidth;
       if (side !== openSide) stairRail(deck, metal, x, [0, landingDepth / 2], [0, -landingDepth / 2]);
       rod(deck, metal, [x, -height, -landingDepth / 2], [x, -0.1, -landingDepth / 2], 0.057);
+      addLocalCollider(kit.colliders, deck, x, -landingDepth / 2, 0.16, 0.16, true, 0, -height);
     }
     if (endGuard) {
       const edge = groupAt(deck, 'Landing end rail', [0, 0, -landingDepth / 2], Math.PI / 2);
       stairRail(edge, metal, 0, [0, halfWidth], [0, -halfWidth]);
     }
-    addLocalCollider(kit.colliders, deck, deckX, 0, deckWidth, landingDepth, true, railHeight);
+    addLocalCollider(kit.colliders, deck, deckX, 0, deckWidth, landingDepth, true, railHeight, -0.15);
   }
 }

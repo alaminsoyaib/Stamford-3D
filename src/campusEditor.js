@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import { maxBuildingFloors, maxBuildingSpan } from './buildingFactory.js';
 import { limitScale, rounded, validateCampusLayout } from './campusLayout.js';
-import { campusGatePose, closestOnEdge, fitsLand, insideLand, landExtent, perimeterWalls } from './campusBoundary.js';
+import { campusGatePose, closestOnEdge, fitsLand, insideLand, landExtent, perimeterWalls, resolveEditorLandPosition } from './campusBoundary.js';
 import { createDeckDrag } from './campusDeckDrag.js';
 import { createDeckPreviews } from './campusDeckPreviews.js';
 import { createLandEditor } from './campusLandEditor.js';
@@ -571,13 +571,21 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
     if (commit && kit.map.boundary.points && beforeEdit && !selected.buildingId) {
       const { x, z } = selected.root.position;
       const isPool = selected.id === 'pool';
-      const valid = isPool ? poolFits(kit.map.boundary, x, z, selected.root) : insideLand(kit.map.boundary, x, z);
-      if (!valid && (isPool || beforeEdit.pose[0] !== x || beforeEdit.pose[2] !== z)) {
-        applyTransform(selected, beforeEdit);
-        beforeEdit = null;
-        onLayoutChange();
-        message(isPool ? 'Keep the pool and its steps inside the boundary.' : 'Choose a spot inside the land boundary.');
-        return;
+      if (isPool) {
+        if (!poolFits(kit.map.boundary, x, z, selected.root)) {
+          applyTransform(selected, beforeEdit);
+          beforeEdit = null;
+          onLayoutChange();
+          message('Keep the pool and its steps inside the boundary.');
+          return;
+        }
+      } else if (beforeEdit.pose[0] !== x || beforeEdit.pose[2] !== z) {
+        const resolved = resolveEditorLandPosition(kit.map.boundary, beforeEdit.pose[0], beforeEdit.pose[2], x, z);
+        if (resolved.clamped) {
+          selected.root.position.x = resolved.x;
+          selected.root.position.z = resolved.z;
+          message('Aligned inside the land boundary.');
+        }
       }
     }
     const root = selected.root;
@@ -903,11 +911,23 @@ export function createCampusEditor(runtime, kit, onEdit, onToggle, onLayoutChang
     const x = snap(groundPoint.x + pointer.offsetX);
     const z = snap(groundPoint.z + pointer.offsetZ);
     const boundary = kit.map.boundary;
-    if (!insideLand(boundary, x, z, 0, !boundary.points) || overDeck(event)
-      || (pointer.entry.id === 'pool' && !poolFits(boundary, x, z))) return;
-    if (pointer.entry.root.position.x === x && pointer.entry.root.position.z === z) return;
-    pointer.entry.root.position.x = x;
-    pointer.entry.root.position.z = z;
+    if (overDeck(event) || (pointer.entry.id === 'pool' && !poolFits(boundary, x, z))) return;
+    let nextX = x;
+    let nextZ = z;
+    if (!insideLand(boundary, nextX, nextZ, 0, !boundary.points)) {
+      const resolved = resolveEditorLandPosition(
+        boundary,
+        pointer.entry.root.position.x,
+        pointer.entry.root.position.z,
+        nextX,
+        nextZ
+      );
+      nextX = resolved.x;
+      nextZ = resolved.z;
+    }
+    if (pointer.entry.root.position.x === nextX && pointer.entry.root.position.z === nextZ) return;
+    pointer.entry.root.position.x = nextX;
+    pointer.entry.root.position.z = nextZ;
     changed(false);
   }
 
