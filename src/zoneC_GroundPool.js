@@ -4,6 +4,7 @@ import { academicBuildingOptions } from './academicBuilding.js';
 import { worldOutline } from './campusFootprints.js';
 import { rounded } from './campusLayout.js';
 import { buildFieldShelter } from './fieldShelter.js';
+import { buildGroundEnclosure } from './groundEnclosure.js';
 import { batchStaticMeshes, box, createPortal, cylinder, groupAt, part, rod } from './sceneKit.js';
 
 const parasolGeometry = new THREE.ConeGeometry(1, 0.47, 9, 1);
@@ -52,14 +53,20 @@ function buildGroundDetails(parent, kit) {
     : [-15.2, -43.4, Math.PI / 2];
   const shelter = kit.prop(parent, 'shelter', 'Field shelter', shelterX, shelterZ, shelterYaw);
   buildFieldShelter(shelter, kit);
+  const courtScale = surveyed ? 0.81 : 1;
+  buildGroundEnclosure(parent, kit, {
+    lawn,
+    courtSite,
+    courtHalfW: ((courtW + 0.72) * courtScale) / 2,
+    courtHalfD: ((courtD + 0.7) * courtScale) / 2,
+    shelter
+  });
   if (surveyed) return;
   kit.bench(parent, 14, -31.1, -Math.PI / 2);
   kit.bench(parent, 14, -36.5, -Math.PI / 2);
   kit.bench(parent, 1.9, -51.3);
   const banyan = kit.tree(parent, -14.6, -29.9, 1.08, 'banyan', 792);
-  cylinder(banyan, m.concrete, 1.76, 0.23, [0, 0.116, 0]);
-  cylinder(banyan, m.soil, 1.62, 0.08, [0, 0.245, 0]);
-  addLocalCollider(kit.colliders, banyan, 0, 0, 2.9, 2.9);
+  addLocalCollider(kit.colliders, banyan, 0, 0, 3.6, 3.6, true, 0.56, 0);
   for (const [x, z, size, type] of [
     [13.4, -22, 1.06, 'palm'], [14, -48.9, 1.02, 'palm'], [-15.6, -49.6, 0.88, 'shade'],
     [-17.6, -37.8, 0.83, 'palm'], [0.4, -49.6, 0.8, 'palm'], [-18.7, -57, 1.1, 'shade']

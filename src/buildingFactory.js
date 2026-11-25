@@ -479,7 +479,7 @@ export function createCampusKit(map) {
           layout.objects.set(fixture.doorId, doorEntry);
         }
       }
-      if (options.groundExterior) options.groundExterior({ root, width, depth, story, facade });
+      if (options.groundExterior) options.groundExterior({ root, width, depth, story, facade, recess, section, endWidth, lowerDepth });
       else {
         box(root, wall, [width, story, depth - recess], [0, story / 2, -recess / 2]);
         box(root, materials.black, [width + 0.025, 0.28, depth - recess + 0.04], [0, 0.14, -recess / 2]);
@@ -527,10 +527,17 @@ export function createCampusKit(map) {
         const rise = upperHeight - height;
         const upper = groupAt(root, 'Setback upper floor', [x, height, z]);
         const upperWall = options.upperFloorWall ?? wall;
-        box(upper, upperWall, [upperWidth, rise, upperDepth], [0, rise / 2, 0]);
-        flatRoof(upper, upperWidth, upperDepth, rise, upperWall);
-        upperWindows(upper, upperWidth, upperDepth, 0, 1, { storey: rise });
-        addLocalCollider(colliders, root, x, z, upperWidth, upperDepth, true, upperHeight + 0.535, endWidth ? story : height);
+        if (options.upperFloorExterior && endWidth) {
+          options.upperFloorExterior({
+            root, upper, upperWidth, upperDepth, rise, height, upperHeight,
+            wall: upperWall, trim, lowerDepth, width, depth, story, floors
+          });
+        } else {
+          box(upper, upperWall, [upperWidth, rise, upperDepth], [0, rise / 2, 0]);
+          flatRoof(upper, upperWidth, upperDepth, rise, upperWall);
+          upperWindows(upper, upperWidth, upperDepth, 0, 1, { storey: rise });
+        }
+        addLocalCollider(colliders, root, x, z, upperWidth, upperDepth, true, upperHeight + 0.56, endWidth ? story : height);
       }
 
       const link = rearLinkBounds(spec);
@@ -604,8 +611,15 @@ export function createCampusKit(map) {
       upperWindows(front, width, frontDepth, 1, frontFloors, { blankSide: 'back' });
 
       const end = groupAt(root, 'Academic end bay', [restWidth / 2, 0, backZ]);
-      box(end, wall, [endWidth, wallHeight, lowerDepth], [0, wallY, 0]);
-      upperWindows(end, endWidth, lowerDepth, 1, frontFloors, { blankSide: 'left' });
+      if (options.endBayExterior) {
+        options.endBayExterior({
+          root, end, width, depth, endWidth, restWidth, lowerDepth,
+          story, wallHeight, wallY, height, frontFloors, wall, trim
+        });
+      } else {
+        box(end, wall, [endWidth, wallHeight, lowerDepth], [0, wallY, 0]);
+        upperWindows(end, endWidth, lowerDepth, 1, frontFloors, { blankSide: 'left' });
+      }
       addLocalCollider(colliders, root, 0, lowerDepth / 2, width, frontDepth, true, height + 0.535, story);
       if (section && options.stairs) options.stairs({
         root, width, depth, endWidth, lowerDepth, lowerRoofY, roofOverhang: roofCopingOverhang,
@@ -688,6 +702,26 @@ export function createCampusKit(map) {
         }
       }
       part(root, crownGeometry, foliage[1], [0.12, height, 0], [2.15, 1.21, 1.86]);
+      if (banyan) {
+        // Raised weathered grey/pale stone circular sitting bench around the banyan tree base
+        const benchRadius = 1.95;
+        const benchHeight = 0.5;
+        const segments = 16;
+        const stoneLight = standard('#cbc6ba', { roughness: 0.82 });
+        const stoneDark = standard('#838079', { roughness: 0.86 });
+        const stoneCap = standard('#e2dcd0', { roughness: 0.6 });
+        cylinder(root, materials.soil, benchRadius - 0.22, benchHeight - 0.08, [0, (benchHeight - 0.08) / 2, 0]);
+        for (let seg = 0; seg < segments; seg++) {
+          const theta = (seg / segments) * Math.PI * 2;
+          const segWidth = (2 * Math.PI * benchRadius) / segments + 0.04;
+          const panel = box(root, seg % 2 ? stoneLight : stoneDark, [segWidth, benchHeight - 0.08, 0.36],
+            [Math.cos(theta) * benchRadius, (benchHeight - 0.08) / 2, Math.sin(theta) * benchRadius]);
+          panel.rotation.y = -theta + Math.PI / 2;
+          const cap = box(root, stoneCap, [segWidth + 0.02, 0.08, 0.42],
+            [Math.cos(theta) * benchRadius, benchHeight - 0.04, Math.sin(theta) * benchRadius]);
+          cap.rotation.y = -theta + Math.PI / 2;
+        }
+      }
     }
     const trunkWidth = type === 'banyan' ? 1.65 : 0.48;
     if (id !== null) addLocalCollider(colliders, root, 0, 0, trunkWidth, trunkWidth);

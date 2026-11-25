@@ -1,10 +1,14 @@
 import { officialStoryHeight } from './buildingFactory.js';
+import { buildAcademicEndBayExterior, buildAcademicGroundExterior, buildAcademicUpperGallery } from './academicExterior.js';
 import { buildAcademicStairs } from './academicStairs.js';
 
 export function academicBuildingOptions(kit) {
   return {
     upperFloorStory: officialStoryHeight,
     upperFloorWall: kit.materials.official,
+    groundExterior: (params) => buildAcademicGroundExterior(kit, params),
+    endBayExterior: (params) => buildAcademicEndBayExterior(kit, params),
+    upperFloorExterior: (params) => buildAcademicUpperGallery(kit, params),
     stairs: (section) => buildAcademicStairs(kit, section),
     title: 'ACADEMIC BUILDING', subtitle: 'GROUND ELEVATION', signWidth: 7.2,
     doors: [
